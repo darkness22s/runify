@@ -593,7 +593,7 @@ public class QAMain extends JavaPlugin {
         }
         try {
             if (Bukkit.getPluginManager().getPlugin("MythicMobs") != null) {
-                Bukkit.getPluginManager().registerEvents(new MythicMobsHook(), this);
+                MythicMobsHook.register(this);
                 getLogger().info("Found MythicMobs. Loaded support");
             }
         } catch (Error | Exception e) {
