@@ -17,6 +17,7 @@ public class IronsightsHandler {
 	public static int ironsightsData = 21;
 	public static String ironsightsDisplay = "Iron Sights Enabled";
 	public static Map<Player, Integer> beforeSwitch = new HashMap<>();
+	private static final Map<Player, ItemStack> offhandStorage = new HashMap<>();
 
 
 	public static void aim(Player player){
@@ -25,7 +26,7 @@ public class IronsightsHandler {
 				if(player.getInventory().getItemInOffHand() != null && !player.getInventory().getItemInOffHand().getType().equals(Material.AIR)){
 					int slot = player.getInventory().firstEmpty();
 					if (slot == -1) {
-						player.getWorld().dropItem(player.getLocation(),player.getInventory().getItemInOffHand());
+						offhandStorage.put(player, player.getInventory().getItemInOffHand());
 					} else {
 						player.getInventory().setItem(slot, player.getInventory().getItemInOffHand());
 						if (QAMain.restoreOffHand) beforeSwitch.put(player, slot);
@@ -65,6 +66,9 @@ public class IronsightsHandler {
 						}
 					}
 					beforeSwitch.remove(player);
+				}
+				if (offhandStorage.containsKey(player)) {
+					player.getInventory().setItemInOffHand(offhandStorage.remove(player));
 				}
 
 				Gun.updateAmmo(null, player, ammo);
