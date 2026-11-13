@@ -21,6 +21,18 @@ public class GunYML extends ArmoryYML {
 	}
 
 	@Override
+	public GunYML set(String name, Object value) {
+		super.set(name, value);
+		return this;
+	}
+
+	@Override
+	public GunYML set(boolean force, String name, Object value) {
+		super.set(force, name, value);
+		return this;
+	}
+
+	@Override
 	public void verifyAllTagsExist() {
 		super.verifyAllTagsExist();
 		verify("weapontype", WeaponType.RIFLE.name());
