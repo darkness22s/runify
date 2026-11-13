@@ -26,7 +26,7 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             echo "Build attempt ${attempt}/3"
-            if mvn --batch-mode --no-transfer-progress -U clean package; then
+            if mvn --batch-mode --no-transfer-progress -U package; then
               exit 0
             fi
             if [ "${attempt}" -lt 3 ]; then
