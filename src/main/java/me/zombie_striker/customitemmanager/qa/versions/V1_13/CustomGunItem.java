@@ -276,8 +276,8 @@ public class CustomGunItem extends AbstractCustomGunItem {
 				.setIsSecondaryWeapon(true).setRecoil(10).done();
 		GunYMLCreator
 				.createNewDefaultGun(dataFolder, "awp", "AWP", 39, stringsMetalRif, WeaponType.SNIPER,
-						WeaponSounds.GUN_BIG, true, "762", 10, 12, 3000)
-				.setDelayShoot(0.8).setZoomLevel(9).setSwayMultiplier(3).setRecoil(5).setSwayUnscopedModifier(3)
+						WeaponSounds.GUN_BIG, true, "762", 20, 12, 3000)
+				.setDelayShoot(0.8).setZoomLevel(9).setSwayMultiplier(1).setRecoil(5).setSwayUnscopedModifier(3)
 				.set(false, "maxBulletDistance", 1000).set(false, "headshotMultiplier", 4).done();
 
 		GunYMLCreator.createMisc(false, dataFolder, false, "default_smokegrenade", "smokegrenade",
