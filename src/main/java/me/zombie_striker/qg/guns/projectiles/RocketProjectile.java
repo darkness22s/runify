@@ -46,13 +46,9 @@ public class RocketProjectile implements RealtimeCalculationProjectile {
 
 					final Location explode = s.clone();
 					if (GunUtil.isSolid(explode.getBlock(), explode) || entityNear || distance < 0) {
-						boolean explodeDamage = false;
-
-						if (QAMain.enableExplosionDamage) {
-							QAProjectileExplodeEvent event = new QAProjectileExplodeEvent(RocketProjectile.this, explode);
-							Bukkit.getPluginManager().callEvent(event);
-							if (!event.isCancelled()) explodeDamage = ExplosionHandler.handleExplosion(explode, 4, 2);
-						}
+						QAProjectileExplodeEvent event = new QAProjectileExplodeEvent(RocketProjectile.this, explode);
+						Bukkit.getPluginManager().callEvent(event);
+						if (!event.isCancelled()) ExplosionHandler.handleExplosion(explode, 3, 2);
 						try {
 							//player.getWorld().playSound(s, WeaponSounds.WARHEAD_EXPLODE.getSoundName(), 10, 0.9f);
 							player.getWorld().playSound(s, Sound.ENTITY_GENERIC_EXPLODE, 8, 0.7f);
