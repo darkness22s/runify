@@ -1,0 +1,11 @@
+/.sparky/
+/target/
+.settings
+.project
+.classpath
+/bin/
+.idea/
+*.iml
+dependency-reduced-pom.xml
+server/
+run/
