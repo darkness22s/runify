@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "qualityarmory_hit_preview",
+  "version": "${version}",
+  "name": "QualityArmory Hit Preview",
+  "description": "Colors the crosshair and previews QualityArmory weapon damage against the targeted entity.",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["me.zombie_striker.qg.preview.HitPreviewClient"]
+  },
+  "mixins": ["qualityarmory-hit-preview.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "minecraft": "1.20.6",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

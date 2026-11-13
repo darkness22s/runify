@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "me.zombie_striker.qg.preview.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["InGameHudMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

@@ -31,6 +31,7 @@
 - **Economy Integration** - Weapon shops with Vault support
 - **NPC Integration** - Citizens NPC support for custom gun-wielding NPCs
 - **GUI System** - Intuitive menu system for crafting, shopping, and item management
+- **Hit Preview (Fabric client mod)** - Colors the crosshair and estimates damage and lethal hits for the targeted entity (Minecraft 1.20.6)
 
 ### 🔌 Plugin Integrations
 
