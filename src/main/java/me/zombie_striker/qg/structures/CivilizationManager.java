@@ -10,6 +10,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.IronGolem;
 import org.bukkit.entity.Pillager;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.Vindicator;
 import org.bukkit.event.EventHandler;
@@ -40,6 +42,7 @@ public final class CivilizationManager implements Listener {
     private final SiegeCannon cannons;
     private final File dataFile;
     private final NamespacedKey raidKey;
+    private final NamespacedKey objectiveKey;
     private final Map<UUID, Civilization> civilizations = new ConcurrentHashMap<>();
     private final Set<UUID> constructing = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Long> lastRaid = new ConcurrentHashMap<>();
@@ -100,6 +103,7 @@ public final class CivilizationManager implements Listener {
         this.cannons = cannons;
         this.dataFile = new File(plugin.getDataFolder(), "civilizations.yml");
         this.raidKey = new NamespacedKey(plugin, "civilization_raider");
+        this.objectiveKey = new NamespacedKey(plugin, "civilization_objective");
         load();
     }
 
@@ -404,6 +408,7 @@ public final class CivilizationManager implements Listener {
     }
 
     private void addLife(Location base, Site site) {
+        objectiveLabel(base, site);
         // Civilian NPCs give raiders natural targets, and each garrison has a guardian.
         for (Entity existing : base.getWorld().getNearbyEntities(base.clone().add(0, 2, 0), 7, 7, 7)) {
             if (existing instanceof Villager && existing.getCustomName() != null
@@ -426,6 +431,36 @@ public final class CivilizationManager implements Listener {
             guard.setPlayerCreated(true);
             guard.setPersistent(true);
         }
+    }
+
+    /** Floating in-world status display above each district's strategic lodestone. */
+    private void objectiveLabel(Location base, Site site) {
+        Location labelLocation = base.clone().add(0.5, 4.15, 0.5);
+        TextDisplay label = null;
+        for (Entity entity : base.getWorld().getNearbyEntities(labelLocation, 2, 2, 2)) {
+            if (entity instanceof TextDisplay
+                    && site.id.equals(entity.getPersistentDataContainer()
+                            .get(objectiveKey, PersistentDataType.STRING))) {
+                label = (TextDisplay) entity;
+                break;
+            }
+        }
+        if (label == null) {
+            label = base.getWorld().spawn(labelLocation, TextDisplay.class);
+            label.setBillboard(Display.Billboard.CENTER);
+            label.setSeeThrough(false);
+            label.setPersistent(true);
+            label.getPersistentDataContainer().set(objectiveKey, PersistentDataType.STRING, site.id);
+        }
+        label.setText((site.hp == 0 ? ChatColor.RED : ChatColor.GOLD)
+                + site.title + " | " + ChatColor.WHITE + site.hp + "/100"
+                + ChatColor.GRAY + "  Defend the core");
+    }
+
+    private void refreshLabel(Civilization c, Site s) {
+        Location center = c.location(s);
+        if (center != null)
+            FoliaRunnable.runRegionTask(plugin, center, () -> objectiveLabel(center, s));
     }
 
     private Material materialAt(Site s, int x, int y, int z) {
@@ -622,6 +657,7 @@ public final class CivilizationManager implements Listener {
         core.getBlock().setType(Material.LODESTONE, false);
         s.hp = Math.min(MAX_HP, s.hp + 40);
         save();
+        refreshLabel(c, s);
         player.sendMessage(ChatColor.GREEN + s.title + " repaired to " + s.hp + "/100 integrity.");
     }
 
@@ -727,6 +763,7 @@ public final class CivilizationManager implements Listener {
             s.hp = Math.max(0, s.hp - damage);
             save();
         }
+        refreshLabel(c, s);
         Player owner = Bukkit.getPlayer(c.owner);
         if (owner != null) {
             FoliaRunnable.runEntityTask(plugin, owner, () -> owner.sendMessage(
