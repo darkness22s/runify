@@ -530,9 +530,25 @@ public final class CivilizationManager implements Listener {
     }
 
     private Civilization ours(Player player) {
-        Civilization c = civilizations.get(player.getUniqueId());
-        if (c == null) player.sendMessage(ChatColor.RED + "Create a civilization first: /qa civ");
-        return c;
+        Civilization own = civilizations.get(player.getUniqueId());
+        if (own != null) return own;
+        // Co-op support: visitors can inspect and repair the nearest civilization.
+        Civilization closest = null;
+        double best = 240.0 * 240.0;
+        Location location = player.getLocation();
+        for (Civilization c : civilizations.values()) {
+            if (!c.worldId.equals(player.getWorld().getUID())) continue;
+            double dx = location.getX() - c.x;
+            double dz = location.getZ() - c.z;
+            double distance = dx * dx + dz * dz;
+            if (distance < best) {
+                best = distance;
+                closest = c;
+            }
+        }
+        if (closest == null) player.sendMessage(ChatColor.RED
+                + "Create a civilization with /qa civ or visit a nearby allied civilization.");
+        return closest;
     }
 
     private void status(Player player) {
