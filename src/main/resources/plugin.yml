@@ -25,6 +25,10 @@ permissions:
       qualityarmory.default: true
       qualityarmory.debugmessages: true
       qualityarmory.outpost: true
+      qualityarmory.civ: true
+  qualityarmory.civ:
+    description: Creates and defends a large multi-district civilization with siege cannons
+    default: op
   qualityarmory.outpost:
     description: Allows building a 33x33 siege outpost at the player's position
     default: op
