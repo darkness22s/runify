@@ -105,3 +105,7 @@ IronSightsOnRightClick: false
 SwapSneakToSingleFile: false
 DestructableMaterials:
   - MATERIAL_NAME_HERE
+# The cannon scales its explosion and AoE damage from the installed RPG.
+# Fallback only used when no RPG gun has been registered by an expansion pack.
+cannon:
+  fallbackRpgDamage: 20
