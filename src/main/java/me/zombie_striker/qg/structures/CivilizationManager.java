@@ -302,8 +302,15 @@ public final class CivilizationManager implements Listener {
                 if (site.kind == Kind.CITADEL || site.kind == Kind.OUTPOST) {
                     float yaw = site.kind == Kind.CITADEL ? 180.0f
                             : (float) Math.toDegrees(Math.atan2(-site.dx, site.dz));
-                    cannons.place(c.owner + "-" + site.id,
-                            center.clone().add(5.5, 1.0, 4.5), yaw);
+                    // Put artillery on a purpose-built high terrace, above the
+                    // fortress parapets; otherwise shells would hit our own walls.
+                    int gx = site.kind == Kind.CITADEL ? -site.radius + 4
+                            : Integer.signum(site.dx) * (site.radius - 4);
+                    int gz = site.kind == Kind.CITADEL ? -site.radius + 3
+                            : Integer.signum(site.dz) * (site.radius - 3);
+                    Location terrace = center.clone().add(gx + 0.5, site.height - 4, gz + 0.5);
+                    FoliaRunnable.runRegionTask(plugin, terrace,
+                            () -> cannons.place(c.owner + "-" + site.id, terrace, yaw));
                 }
             });
         }
@@ -429,8 +436,11 @@ public final class CivilizationManager implements Listener {
             int towerR = r - 3;
             boolean tower = ax >= towerR - 2 && az >= towerR - 2;
             int deck = s.kind == Kind.CITADEL ? 8 : 7;
+            if (tower && y <= s.height - 4 && ax == towerR && az == towerR)
+                return Material.SCAFFOLDING; // Stair-shaft reaches the artillery terrace.
+            if (tower && y == s.height - 5)
+                return Material.POLISHED_BLACKSTONE_BRICKS; // Rooftop firing platform.
             if (tower && y < s.height - 4) {
-                if (ax == towerR && az == towerR && y < s.height - 6) return Material.SCAFFOLDING;
                 if (y == deck || y == 2 * deck || y == 3 * deck)
                     return Material.DARK_OAK_PLANKS;
                 if ((ax == r || az == r) && y < s.height - 6) {
