@@ -118,6 +118,9 @@ The documentation is available on our [website](https://wiki.lorenzo0111.me/qual
 - `/qa reload` - Reload configuration
 - `/qa shop` - Open weapon shop
 - `/qa craft` - Open crafting menu
+- `/qa outpost` - Spawn a custom 33×33, 39-block-tall siege fortress at your feet (OPs by default)
+
+> **Siege mode:** The outpost includes four tall corner towers, five fighting decks, cover, and scaffolding shafts. It replaces terrain inside its footprint, so use it in a dedicated arena world. The normal RPG block blast now defaults to power **8** (previously 3); edit `rpgExplosionPower` in `plugins/QualityArmory/config.yml` (range 1–16) and run `/qa reload` to tune it. Region-protection rules still apply.
 
 ### Key Permissions
 
@@ -127,6 +130,7 @@ The documentation is available on our [website](https://wiki.lorenzo0111.me/qual
 - `qualityarmory.shop` - Access shop
 - `qualityarmory.craft` - Access crafting
 - `qualityarmory.usegun` - Use weapons
+- `qualityarmory.outpost` - Spawn the siege outpost (OP-only by default)
 
 ---
 

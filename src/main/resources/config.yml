@@ -77,6 +77,9 @@ showOutOfAmmoOnTitle: false
 showReloadingTitle: false
 enableExplosionDamage: false
 enableExplosionDamageDrop: false
+# Standard RPG block-explosion power (default 8, allowed 1-16). Higher values destroy more stone.
+# Respects region protection and server explosion settings; use /qa reload after editing.
+rpgExplosionPower: 8
 enablePrimaryWeaponLimiter: false
 weaponlimiter_primaries: 2
 weaponlimiter_secondaries: 2

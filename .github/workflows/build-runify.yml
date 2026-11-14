@@ -1,0 +1,36 @@
+name: Build and verify Runify
+
+on:
+  push:
+    branches:
+      - main
+      - feature/rpg-siege-outpost-2026-11-14
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Compile and package plugin
+        run: mvn --batch-mode --no-transfer-progress package
+
+      - name: Upload plugin JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: Runify-QualityArmory
+          path: target/QualityArmory.jar
+          if-no-files-found: error
