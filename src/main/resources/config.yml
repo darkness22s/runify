@@ -80,6 +80,14 @@ enableExplosionDamageDrop: false
 # Standard RPG block-explosion power (default 8, allowed 1-16). Higher values destroy more stone.
 # Respects region protection and server explosion settings; use /qa reload after editing.
 rpgExplosionPower: 8
+
+# Rideable siege tank; its cannon uses 3x the actual RPG damage and blast strength.
+# Controls: right-click the tank's driver seat, WASD to drive, F to charge/fire.
+tank:
+  health: 400.0
+  movementSpeed: 0.20
+  chargeSeconds: 2
+  reloadSeconds: 35
 enablePrimaryWeaponLimiter: false
 weaponlimiter_primaries: 2
 weaponlimiter_secondaries: 2

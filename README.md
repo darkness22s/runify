@@ -119,6 +119,9 @@ The documentation is available on our [website](https://wiki.lorenzo0111.me/qual
 - `/qa shop` - Open weapon shop
 - `/qa craft` - Open crafting menu
 - `/qa outpost` - Spawn a custom 33×33, 39-block-tall siege fortress at your feet (OPs by default)
+- `/qa tank` - Deploy an armored, rideable 3D siege tank at your feet (OPs by default)
+
+> **Tank mode (Minecraft 1.20.6+):** `/qa tank` summons a drivable tank assembled from more than 20 three-dimensional BlockDisplay parts, with moving treads/armored hull, a rotating turret and a long cannon (no extra resource pack needed). Right-click the driver's seat to mount; use WASD to drive and Shift to dismount. Aim with your mouse and press **F** (swap-hand key) to charge and fire a cannonball. Base health is **400 HP**; enemy bullets and explosions damage the tank's vehicle entity. Firing needs **2 seconds to charge** plus **35 seconds to reload** before the next shot. The shell uses **3× the RPG's configured block-explosion strength, direct AoE damage and radius**. These timings, health and speed can be adjusted in the `tank` section of `config.yml`. Because the cannon can tear up large areas, deploy it in a disposable battle world or an arena and respect protection-region rules. The plugin stores the tank's underlying horse; visual model parts are rebuilt when its chunk loads.
 
 > **Siege mode:** The outpost includes four tall corner towers, five fighting decks, cover, and scaffolding shafts. It replaces terrain inside its footprint, so use it in a dedicated arena world. The normal RPG block blast now defaults to power **8** (previously 3); edit `rpgExplosionPower` in `plugins/QualityArmory/config.yml` (range 1–16) and run `/qa reload` to tune it. Region-protection rules still apply.
 
@@ -131,6 +134,7 @@ The documentation is available on our [website](https://wiki.lorenzo0111.me/qual
 - `qualityarmory.craft` - Access crafting
 - `qualityarmory.usegun` - Use weapons
 - `qualityarmory.outpost` - Spawn the siege outpost (OP-only by default)
+- `qualityarmory.tank` - Deploy a siege tank (OP-only by default)
 
 ---
 
