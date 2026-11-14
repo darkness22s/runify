@@ -1,5 +1,6 @@
 package me.zombie_striker.qg.vehicles;
 
+import com.cryptomorin.xseries.messages.ActionBar;
 import me.zombie_striker.qg.QAMain;
 import me.zombie_striker.qg.guns.Gun;
 import me.zombie_striker.qg.guns.projectiles.RocketProjectile;
@@ -129,7 +130,7 @@ public final class SiegeTankManager implements Listener {
                         long seconds = Math.max(0L, (tank.readyAt - System.currentTimeMillis() + 999L) / 1000L);
                         String status = tank.charging ? "CHARGING CANNON"
                                 : seconds > 0 ? "RELOADING: " + seconds + "s" : "READY (F TO FIRE)";
-                        player.sendActionBar(ChatColor.DARK_GREEN + "TANK "
+                        ActionBar.sendActionBar(player, ChatColor.DARK_GREEN + "TANK "
                                 + ChatColor.GREEN + (int) Math.ceil(horse.getHealth()) + "/"
                                 + (int) horse.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue()
                                 + " HP  " + ChatColor.GOLD + status);
