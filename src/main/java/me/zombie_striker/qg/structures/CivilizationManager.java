@@ -42,6 +42,7 @@ public final class CivilizationManager implements Listener {
     private final NamespacedKey raidKey;
     private final Map<UUID, Civilization> civilizations = new ConcurrentHashMap<>();
     private final Set<UUID> constructing = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastRaid = new ConcurrentHashMap<>();
 
     private enum Kind { CITADEL, OUTPOST, GRANARY, FORGE, HOSPITAL, WATERWORKS }
 
@@ -307,18 +308,92 @@ public final class CivilizationManager implements Listener {
             });
         }
         if (remaining.decrementAndGet() == 0) {
-            c.complete = true;
-            constructing.remove(c.owner);
-            save();
-            FoliaRunnable.runEntityTask(plugin, owner, () -> {
-                owner.sendMessage(ChatColor.GREEN + "Civilization created: nine objectives across the Crownlands.");
-                if (failures.get() > 0)
-                    owner.sendMessage(ChatColor.YELLOW + failures.get()
-                            + " districts hit protection limits or failed to finish; check server logs.");
-                owner.sendMessage(ChatColor.AQUA + "/qa civ status" + ChatColor.GRAY + " for defenses; "
-                        + ChatColor.AQUA + "/qa civ raid" + ChatColor.GRAY + " to unleash a siege.");
+            buildRoads(c, () -> {
+                c.complete = true;
+                constructing.remove(c.owner);
+                save();
+                FoliaRunnable.runEntityTask(plugin, owner, () -> {
+                    owner.sendMessage(ChatColor.GREEN + "Civilization created: nine objectives, "
+                            + "connecting roads and artillery across the Crownlands.");
+                    if (failures.get() > 0)
+                        owner.sendMessage(ChatColor.YELLOW + failures.get()
+                                + " districts hit protection limits or failed to finish; check server logs.");
+                    owner.sendMessage(ChatColor.AQUA + "/qa civ status" + ChatColor.GRAY + " for defenses; "
+                            + ChatColor.AQUA + "/qa civ raid" + ChatColor.GRAY + " to unleash a siege.");
+                });
             });
         }
+    }
+
+    /**
+     * Three-dimensional districts are linked with wide illuminated stone roads:
+     * capital-to-facility spokes and a perimeter ring joining the outposts.
+     * Road construction is chunk-bounded and uses the same per-tick budget.
+     */
+    private void buildRoads(Civilization c, Runnable complete) {
+        World world = c.world();
+        if (world == null) {
+            complete.run();
+            return;
+        }
+        int minX = Math.floorDiv(c.x - 80, 16), maxX = Math.floorDiv(c.x + 80, 16);
+        int minZ = Math.floorDiv(c.z - 80, 16), maxZ = Math.floorDiv(c.z + 80, 16);
+        AtomicInteger pending = new AtomicInteger((maxX - minX + 1) * (maxZ - minZ + 1));
+        for (int cx = minX; cx <= maxX; cx++) {
+            for (int cz = minZ; cz <= maxZ; cz++) {
+                final int chunkX = cx, chunkZ = cz;
+                Location region = new Location(world, cx * 16 + 8, c.y + 1, cz * 16 + 8);
+                new FoliaRunnable() {
+                    int index;
+                    @Override
+                    public void run() {
+                        try {
+                            int end = Math.min(index + BLOCKS_PER_TICK, 256);
+                            while (index < end) {
+                                int pos = index++;
+                                int x = chunkX * 16 + (pos & 15);
+                                int z = chunkZ * 16 + (pos >> 4);
+                                Material road = roadAt(x - c.x, z - c.z);
+                                if (road == null) continue;
+                                Block b = world.getBlockAt(x, c.y, z);
+                                if (b.getType() == road || b.getType() == Material.BEDROCK
+                                        || b.getType() == Material.END_PORTAL_FRAME
+                                        || !ProtectionHandler.canBreak(b.getLocation())) continue;
+                                b.setType(road, false);
+                            }
+                        } catch (RuntimeException e) {
+                            plugin.getLogger().warning("Road chunk " + chunkX + ","
+                                    + chunkZ + " failed: " + e.getMessage());
+                            cancel();
+                            finish();
+                            return;
+                        }
+                        if (index == 256) {
+                            cancel();
+                            finish();
+                        }
+                    }
+                    void finish() {
+                        if (pending.decrementAndGet() == 0) complete.run();
+                    }
+                }.runTaskTimer(plugin, region, 1, 1);
+            }
+        }
+    }
+
+    private static Material roadAt(int x, int z) {
+        int ax = Math.abs(x), az = Math.abs(z);
+        // Radial streets have no overlap with the citadel or the side districts.
+        boolean eastWest = az <= 2 && ax >= 21 && ax <= 65;
+        boolean northSouth = ax <= 2 && az >= 21 && az <= 65;
+        // The ring links each side facility to both adjacent watch outposts.
+        boolean ringEW = Math.abs(az - GRID_DISTANCE) <= 2 && ax >= 11 && ax <= 63;
+        boolean ringNS = Math.abs(ax - GRID_DISTANCE) <= 2 && az >= 11 && az <= 63;
+        if (!(eastWest || northSouth || ringEW || ringNS)) return null;
+        boolean edge = (eastWest || ringEW) ? az == 2 || Math.abs(az - GRID_DISTANCE) == 2
+                : ax == 2 || Math.abs(ax - GRID_DISTANCE) == 2;
+        if (edge && ((ax + az) % 13 == 0)) return Material.SEA_LANTERN;
+        return edge ? Material.CUT_COPPER : Material.SMOOTH_STONE;
     }
 
     private void addLife(Location base, Site site) {
@@ -531,6 +606,14 @@ public final class CivilizationManager implements Listener {
             return;
         }
         if (c.world() == null) return;
+        long now = System.currentTimeMillis();
+        Long previous = lastRaid.putIfAbsent(c.owner, now);
+        if (previous != null && now - previous < 240000) {
+            player.sendMessage(ChatColor.YELLOW + "The raiders need time to regroup: "
+                    + ((240000 - (now - previous)) / 1000 + 1) + " seconds.");
+            return;
+        }
+        lastRaid.put(c.owner, now);
         player.sendMessage(ChatColor.RED + "A raid is attacking every district! "
                 + "Protect the lodestones and the citizens.");
         for (Site s : c.sites) {
@@ -613,8 +696,11 @@ public final class CivilizationManager implements Listener {
 
     private void hurt(Civilization c, Site s, int damage, String cause) {
         if (s.hp <= 0) return;
-        s.hp = Math.max(0, s.hp - damage);
-        save();
+        synchronized (s) {
+            if (s.hp <= 0) return;
+            s.hp = Math.max(0, s.hp - damage);
+            save();
+        }
         Player owner = Bukkit.getPlayer(c.owner);
         if (owner != null) {
             FoliaRunnable.runEntityTask(plugin, owner, () -> owner.sendMessage(
