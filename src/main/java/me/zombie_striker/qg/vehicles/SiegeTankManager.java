@@ -13,6 +13,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -37,6 +38,7 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Transformation;
@@ -62,11 +64,13 @@ public final class SiegeTankManager implements Listener {
     private static final String SHELL_TAG = "runify_tank_shell";
     private static final int SHELL_RANGE_TICKS = 100;
     private final QAMain plugin;
+    private final NamespacedKey reloadKey;
     private final Map<UUID, Tank> tanks = new ConcurrentHashMap<>();
     private final Map<UUID, Tank> armorHitboxes = new ConcurrentHashMap<>();
 
     public SiegeTankManager(QAMain plugin) {
         this.plugin = plugin;
+        this.reloadKey = new NamespacedKey(plugin, "tank_ready_at");
     }
 
     public void spawn(Player player) {
@@ -247,6 +251,7 @@ public final class SiegeTankManager implements Listener {
                 long reloadMillis = Math.max(5, Math.min(120,
                         plugin.getConfig().getInt("tank.reloadSeconds", 35))) * 1000L;
                 tank.readyAt = System.currentTimeMillis() + reloadMillis;
+                horse.getPersistentDataContainer().set(reloadKey, PersistentDataType.LONG, tank.readyAt);
                 gunner.sendMessage(ChatColor.RED + "BOOM! Cannon reloading for "
                         + (reloadMillis / 1000) + " seconds.");
             }
@@ -359,6 +364,8 @@ public final class SiegeTankManager implements Listener {
 
         private Tank(Horse horse) {
             this.horse = horse;
+            Long savedReload = horse.getPersistentDataContainer().get(reloadKey, PersistentDataType.LONG);
+            this.readyAt = savedReload == null ? 0L : savedReload;
         }
 
         private void add(Material material, float x, float y, float z,
