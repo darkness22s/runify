@@ -108,6 +108,22 @@ public final class SiegeCannon implements Listener {
         }
     }
 
+    /** Standalone battery for battle maps that do not need an entire civilization. */
+    public void spawnStandalone(Player player) {
+        Location anchor = player.getLocation().getBlock().getLocation().add(0.5, 0, 0.5);
+        if (!ProtectionHandler.canBreak(anchor)) {
+            player.sendMessage(ChatColor.RED + "You cannot build a cannon in a protected region.");
+            return;
+        }
+        String id = "manual-" + UUID.randomUUID();
+        float yaw = player.getLocation().getYaw();
+        FoliaRunnable.runRegionTask(plugin, anchor, () -> {
+            place(id, anchor, yaw);
+            FoliaRunnable.runEntityTask(plugin, player, () -> player.sendMessage(ChatColor.GREEN
+                    + "Siege cannon deployed. Sneak + right-click to fire; 30 second reload."));
+        });
+    }
+
     /** Called on the location's region thread after a civilization site is built. */
     public void place(String id, Location anchor, float yaw) {
         if (batteries.containsKey(id)) return;
