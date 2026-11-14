@@ -158,28 +158,28 @@ public final class SiegeOutpost {
             return Material.STONE_BRICKS;
         }
 
-        // Four corner towers, 9x9 and 30 blocks tall, each with climbable decks.
-        int tower = Math.max(Math.abs(ax - 12), Math.abs(az - 12));
-        if (tower <= 4 && y <= 30) {
-            if (ax == 12 && az == 12 && y <= 28) {
+        // Four corner towers, 7x7 and 30 blocks tall, each with climbable decks.
+        int tower = Math.max(Math.abs(ax - 13), Math.abs(az - 13));
+        if (tower <= 3 && y <= 30) {
+            if (ax == 13 && az == 13 && y <= 28) {
                 return Material.SCAFFOLDING;
             }
             if (y == 9 || y == 18 || y == 27) {
-                return tower == 4 ? Material.POLISHED_BLACKSTONE_BRICKS : Material.SPRUCE_PLANKS;
+                return tower == 3 ? Material.POLISHED_BLACKSTONE_BRICKS : Material.SPRUCE_PLANKS;
             }
-            if (tower == 4 && y <= 28) {
-                if (ax == 8 && az == 12 && y <= 4) {
+            if (tower == 3 && y <= 28) {
+                if (ax == 10 && az == 13 && y <= 4) {
                     return Material.AIR; // Courtyard-side tower doorway
                 }
-                if ((y % 9 == 4 || y % 9 == 5) && (ax == 12 || az == 12)) {
+                if ((y % 9 == 4 || y % 9 == 5) && (ax == 13 || az == 13)) {
                     return Material.AIR; // Firing slits
                 }
                 return (y % 9 == 0) ? Material.CUT_COPPER : masonry(x, y, z);
             }
-            if (y == 28 && tower <= 4) {
+            if (y == 28 && tower <= 3) {
                 return Material.POLISHED_BLACKSTONE_BRICKS;
             }
-            if (y == 29 && tower == 4 && ((x + z) & 1) == 0) {
+            if (y == 29 && tower == 3 && ((x + z) & 1) == 0) {
                 return Material.STONE_BRICK_WALL;
             }
             return Material.AIR;
@@ -228,7 +228,7 @@ public final class SiegeOutpost {
                     && ((ax == 4 && az <= 3) || (az == 4 && ax <= 3))) {
                 return Material.POLISHED_BLACKSTONE_BRICKS; // Cover on each floor
             }
-            if (y <= 32 && (y % 8 == 3) && ax == 8 && az == 8) {
+            if (y <= 32 && (y % 8 == 3) && ax == 6 && az == 6) {
                 return Material.SEA_LANTERN;
             }
 
