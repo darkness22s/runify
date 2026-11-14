@@ -49,6 +49,8 @@ import me.zombie_striker.qg.npcs.Gunner;
 import me.zombie_striker.qg.npcs.GunnerTrait;
 import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
 import me.zombie_striker.qg.structures.SiegeOutpost;
+import me.zombie_striker.qg.structures.SiegeCannon;
+import me.zombie_striker.qg.structures.CivilizationManager;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -76,6 +78,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class QAMain extends JavaPlugin {
+
+    private SiegeCannon siegeCannons;
+    private CivilizationManager civilizationManager;
 
     private static String changelog = null;
 
@@ -514,6 +519,8 @@ public class QAMain extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (civilizationManager != null) civilizationManager.save();
+        if (siegeCannons != null) siegeCannons.save();
         for (Entry<MaterialStorage, CustomBaseObject> misc : miscRegister.entrySet()) {
             if (misc instanceof ThrowableItems) {
                 for (Entry<Entity, ThrowableHolder> e : ThrowableItems.throwItems.entrySet()) {
@@ -623,6 +630,11 @@ public class QAMain extends JavaPlugin {
                 getLogger().log(Level.WARNING, "Citizens 2.0 failed to register gunner trait (Ignore this.)");
             }
         }
+
+        siegeCannons = new SiegeCannon(this);
+        civilizationManager = new CivilizationManager(this, siegeCannons);
+        Bukkit.getPluginManager().registerEvents(siegeCannons, this);
+        Bukkit.getPluginManager().registerEvents(civilizationManager, this);
 
         Bukkit.getPluginManager().registerEvents(new QAListener(), this);
         Bukkit.getPluginManager().registerEvents(new GunDamageHandler(), this);
@@ -1235,6 +1247,8 @@ public class QAMain extends JavaPlugin {
                 s.add("dumpItem");
             if (sender.hasPermission("qualityarmory.outpost") && b("outpost", args[0]))
                 s.add("outpost");
+            if (sender.hasPermission("qualityarmory.civ") && b("civ", args[0]))
+                s.add("civ");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1253,6 +1267,11 @@ public class QAMain extends JavaPlugin {
         }
         if (args.length == 2) {
             List<String> s = new ArrayList<String>();
+            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ")) {
+                for (String option : Arrays.asList("status", "locate", "repair", "raid"))
+                    if (b(option, args[1])) s.add(option);
+                return s;
+            }
             if (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("drop")) {
                 for (Entry<MaterialStorage, Gun> e : gunRegister.entrySet()) {
                     if (e.getValue() instanceof AttachmentBase) {
@@ -1285,6 +1304,16 @@ public class QAMain extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("civ")) {
+                    if (!sender.hasPermission("qualityarmory.civ")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only players can manage civilizations.");
+                    } else {
+                        civilizationManager.command((Player) sender, args);
+                    }
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("outpost")) {
                     if (!sender.hasPermission("qualityarmory.outpost")) {
                         sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
@@ -1725,6 +1754,12 @@ public class QAMain extends JavaPlugin {
         if (sender.hasPermission("qualityarmory.outpost"))
             sender.sendMessage(ChatColor.GOLD + "/QA outpost: " + ChatColor.GRAY
                     + "Builds a 33x33, multi-storey siege arena at your feet (overwrites terrain).");
+        if (sender.hasPermission("qualityarmory.civ")) {
+            sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
+                    + "Creates nine fortified districts and five heavy artillery cannons (overwrites terrain).");
+            sender.sendMessage(ChatColor.GOLD + "/QA civ status|locate|repair|raid: " + ChatColor.GRAY
+                    + "Track and defend objectives; fight raids; restore integrity using iron.");
+        }
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
                 + "Sends the link to the resourcepack. Disables the resourcepack prompts until /qa sendResourcepack is used");
