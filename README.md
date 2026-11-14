@@ -163,3 +163,44 @@ See the [LICENSE](LICENSE) file for details.
 - [Spigot Resource Page](https://www.spigotmc.org/resources/quality-armory.47561/)
 - [CI/CD Builds](https://ci.codemc.io/job/ZombieStriker/job/QualityArmory/)
 - [Maven Repository](https://repo.codemc.io/repository/maven-public/)
+
+## Crownlands civilization and siege cannons (Minecraft 1.20.6+)
+
+Run `/qa civ` as a player with `qualityarmory.civ` permission to generate a
+large **185 × 185** dedicated siege playground at your feet. **Back up the world:**
+construction clears and replaces blocks inside nine structures and levels roads.
+Prefer a fresh flat battle world. Protected blocks and claimed regions are skipped.
+
+The generated civilization includes a 38-block **Crown Citadel**, four tall
+**Sentinel Outposts**, the **Golden Granary**, **Iron Foundry**,
+**Sanctuary Clinic** and **Azure Waterworks**. Illuminated roads connect the
+districts. The citadel and four outposts each receive a detailed, resource-pack-free
+3D siege cannon assembled from Minecraft block-display entities.
+
+Players defend nine separate **lodestone objectives** (100 integrity each).
+Raiders periodically pressure the objectives when summoned; failing to eliminate
+attackers or losing a core block ruins a district until it is repaired.
+The tracked objective state persists through server restarts.
+
+| Command | Purpose |
+| --- | --- |
+| `/qa civ` | Build your nine-district civilization (one per player) |
+| `/qa civ status` | Display each district's integrity and coordinates |
+| `/qa civ locate` | Locate your capital and other districts |
+| `/qa civ raid` | Start a multi-front hostile raid (four-minute cooldown) |
+| `/qa civ repair` | Near an objective, spend 12 iron ingots to restore 40 integrity |
+| `/qa outpost` | Existing independent siege outpost (unchanged) |
+
+**Cannon operation:** Stand near the cannon, **sneak and right-click** its
+3D model, face within **28°** of the barrel's preset direction, and elevate
+your view **8°–45°** above horizontal. Cannonballs follow gravity, so targets
+need range estimation. Each cannon requires **30 seconds** to reload (persisted
+through restarts). A hit deals **2× the registered RPG's damage** and generates
+**2× its configurable explosion power** (capped at 32). If no RPG is loaded,
+`cannon.fallbackRpgDamage` provides a configurable reference value.
+World protection hooks and normal server explosion settings still apply.
+
+**Compatibility:** Block displays, text displays and interaction hitboxes
+require modern server APIs (1.20.6 recommended). The build uses the
+existing Folia-aware scheduler for distributed structure construction.
+The existing `/qa outpost` and RPG command functionality remain available.
