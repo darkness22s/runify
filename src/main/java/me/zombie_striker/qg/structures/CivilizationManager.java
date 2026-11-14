@@ -316,7 +316,7 @@ public final class CivilizationManager implements Listener {
                     owner.sendMessage(ChatColor.GREEN + "Civilization created: nine objectives, "
                             + "connecting roads and artillery across the Crownlands.");
                     if (failures.get() > 0)
-                        owner.sendMessage(ChatColor.YELLOW + failures.get()
+                        owner.sendMessage(ChatColor.YELLOW + "" + failures.get()
                                 + " districts hit protection limits or failed to finish; check server logs.");
                     owner.sendMessage(ChatColor.AQUA + "/qa civ status" + ChatColor.GRAY + " for defenses; "
                             + ChatColor.AQUA + "/qa civ raid" + ChatColor.GRAY + " to unleash a siege.");
