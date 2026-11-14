@@ -424,6 +424,7 @@ public final class SiegeTankManager implements Listener {
         }
 
         private void syncHitboxes(Location base) {
+            if (plates.isEmpty()) return;
             int index = 0;
             for (float z : new float[]{-2.0f, 0.0f, 2.0f}) {
                 for (float x : new float[]{-1.25f, 0.0f, 1.25f}) {
