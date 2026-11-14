@@ -335,8 +335,8 @@ public class CustomGunItem extends AbstractCustomGunItem {
 				.createNewDefaultGun(dataFolder, "awp", "AWP", 20, stringsMetalRif, WeaponType.SNIPER,
 						WeaponSounds.GUN_BIG, true, "762", 20, 12, 3000)
 				.setUseOffhand(false).setDelayShoot(0.8).setZoomLevel(9).setSway(0.1).setSwayMultiplier(1).setRecoil(5)
-				.set(false, "maxBulletDistance", 1000).set(false, "headshotMultiplier", 4)
-				.setKilledByMessage("%player% was sniped by %killer% using an %name%").setMaterial(Material.CROSSBOW).setReloadingSound(WeaponSounds.RELOAD_FN).setSwayUnscopedModifier(3).setWeaponSound(WeaponSounds.GUN_BIG).done();
+				.setKilledByMessage("%player% was sniped by %killer% using an %name%").setMaterial(Material.CROSSBOW).setReloadingSound(WeaponSounds.RELOAD_FN).setSwayUnscopedModifier(3).setWeaponSound(WeaponSounds.GUN_BIG)
+				.set(false, "maxBulletDistance", 1000).set(false, "headshotMultiplier", 4).done();
 
 		GunYMLCreator.createMisc(false, dataFolder, false, "default_smokegrenade", "smokegrenade",
 				"&7Smoke Grenade",
