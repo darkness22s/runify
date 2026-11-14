@@ -49,6 +49,7 @@ import me.zombie_striker.qg.npcs.Gunner;
 import me.zombie_striker.qg.npcs.GunnerTrait;
 import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
 import me.zombie_striker.qg.structures.SiegeOutpost;
+import me.zombie_striker.qg.vehicles.SiegeTankManager;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -76,6 +77,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class QAMain extends JavaPlugin {
+
+    private SiegeTankManager siegeTanks;
 
     private static String changelog = null;
 
@@ -514,6 +517,7 @@ public class QAMain extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (siegeTanks != null) siegeTanks.shutdown();
         for (Entry<MaterialStorage, CustomBaseObject> misc : miscRegister.entrySet()) {
             if (misc instanceof ThrowableItems) {
                 for (Entry<Entity, ThrowableHolder> e : ThrowableItems.throwItems.entrySet()) {
@@ -624,6 +628,8 @@ public class QAMain extends JavaPlugin {
             }
         }
 
+        siegeTanks = new SiegeTankManager(this);
+        Bukkit.getPluginManager().registerEvents(siegeTanks, this);
         Bukkit.getPluginManager().registerEvents(new QAListener(), this);
         Bukkit.getPluginManager().registerEvents(new GunDamageHandler(), this);
         Bukkit.getPluginManager().registerEvents(new AimManager(), this);
@@ -1235,6 +1241,8 @@ public class QAMain extends JavaPlugin {
                 s.add("dumpItem");
             if (sender.hasPermission("qualityarmory.outpost") && b("outpost", args[0]))
                 s.add("outpost");
+            if (sender.hasPermission("qualityarmory.tank") && b("tank", args[0]))
+                s.add("tank");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1285,6 +1293,18 @@ public class QAMain extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("tank")) {
+                    if (!sender.hasPermission("qualityarmory.tank")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only a player can deploy a tank.");
+                    } else if (args.length != 1) {
+                        sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa tank");
+                    } else {
+                        siegeTanks.spawn((Player) sender);
+                    }
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("outpost")) {
                     if (!sender.hasPermission("qualityarmory.outpost")) {
                         sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
@@ -1725,6 +1745,9 @@ public class QAMain extends JavaPlugin {
         if (sender.hasPermission("qualityarmory.outpost"))
             sender.sendMessage(ChatColor.GOLD + "/QA outpost: " + ChatColor.GRAY
                     + "Builds a 33x33, multi-storey siege arena at your feet (overwrites terrain).");
+        if (sender.hasPermission("qualityarmory.tank"))
+            sender.sendMessage(ChatColor.GOLD + "/QA tank: " + ChatColor.GRAY
+                    + "Deploys a 3D rideable tank (F to fire, 35s default cannon reload).");
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
                 + "Sends the link to the resourcepack. Disables the resourcepack prompts until /qa sendResourcepack is used");
