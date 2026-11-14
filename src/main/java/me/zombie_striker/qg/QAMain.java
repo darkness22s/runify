@@ -1249,6 +1249,8 @@ public class QAMain extends JavaPlugin {
                 s.add("outpost");
             if (sender.hasPermission("qualityarmory.civ") && b("civ", args[0]))
                 s.add("civ");
+            if (sender.hasPermission("qualityarmory.cannon") && b("cannon", args[0]))
+                s.add("cannon");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1304,6 +1306,18 @@ public class QAMain extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("cannon")) {
+                    if (!sender.hasPermission("qualityarmory.cannon")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only players can deploy siege cannons.");
+                    } else if (args.length != 1) {
+                        sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa cannon");
+                    } else {
+                        siegeCannons.spawnStandalone((Player) sender);
+                    }
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("civ")) {
                     if (!sender.hasPermission("qualityarmory.civ")) {
                         sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
@@ -1754,6 +1768,9 @@ public class QAMain extends JavaPlugin {
         if (sender.hasPermission("qualityarmory.outpost"))
             sender.sendMessage(ChatColor.GOLD + "/QA outpost: " + ChatColor.GRAY
                     + "Builds a 33x33, multi-storey siege arena at your feet (overwrites terrain).");
+        if (sender.hasPermission("qualityarmory.cannon"))
+            sender.sendMessage(ChatColor.GOLD + "/QA cannon: " + ChatColor.GRAY
+                    + "Deploy a standalone 3D siege cannon at your feet.");
         if (sender.hasPermission("qualityarmory.civ")) {
             sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
                     + "Creates nine fortified districts and five heavy artillery cannons (overwrites terrain).");
