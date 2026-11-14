@@ -26,6 +26,10 @@ permissions:
       qualityarmory.debugmessages: true
       qualityarmory.outpost: true
       qualityarmory.civ: true
+      qualityarmory.cannon: true
+  qualityarmory.cannon:
+    description: Deploy a stand-alone interactive 3D siege cannon
+    default: op
   qualityarmory.civ:
     description: Creates and defends a large multi-district civilization with siege cannons
     default: op
