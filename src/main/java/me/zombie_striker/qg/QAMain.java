@@ -48,6 +48,7 @@ import me.zombie_striker.qg.miscitems.ThrowableItems.ThrowableHolder;
 import me.zombie_striker.qg.npcs.Gunner;
 import me.zombie_striker.qg.npcs.GunnerTrait;
 import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
+import me.zombie_striker.qg.structures.SiegeOutpost;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -141,6 +142,7 @@ public class QAMain extends JavaPlugin {
     public static boolean disableHotBarMessageOnReload = false;
     public static boolean disableHotBarMessageOnOutOfAmmo = false;
     public static boolean enableExplosionDamage = false;
+    public static int rpgExplosionPower = 8;
     public static boolean enableExplosionDamageDrop = false;
     public static boolean requirePermsToShoot = false;
     public static boolean requirePermsToCraft = false;
@@ -920,6 +922,7 @@ public class QAMain extends JavaPlugin {
         weaponSwitchDelay = (double) a("weaponSwitchDelay", 0.0);
 
         enableExplosionDamage = (boolean) a("enableExplosionDamage", false);
+        rpgExplosionPower = Math.max(1, Math.min(16, ((Number) a("rpgExplosionPower", 8)).intValue()));
         enableExplosionDamageDrop = (boolean) a("enableExplosionDamageDrop", false);
 
         enablePrimaryWeaponHandler = (boolean) a("enablePrimaryWeaponLimiter", false);
@@ -1230,6 +1233,8 @@ public class QAMain extends JavaPlugin {
                 s.add("version");
             if (b("dumpItem", args[0]))
                 s.add("dumpItem");
+            if (sender.hasPermission("qualityarmory.outpost") && b("outpost", args[0]))
+                s.add("outpost");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1280,6 +1285,18 @@ public class QAMain extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("outpost")) {
+                    if (!sender.hasPermission("qualityarmory.outpost")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only a player can spawn an outpost.");
+                    } else if (args.length != 1) {
+                        sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa outpost");
+                    } else {
+                        SiegeOutpost.spawn(this, (Player) sender);
+                    }
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("version")) {
                     sender.sendMessage(prefix + ChatColor.WHITE + " This server is using version " + ChatColor.GREEN
                             + this.getDescription().getVersion() + ChatColor.WHITE + " of QualityArmory");
@@ -1705,6 +1722,9 @@ public class QAMain extends JavaPlugin {
                 + " Gives the sender the item specified (guns, ammo, misc.)");
         sender.sendMessage(ChatColor.GOLD + "/QA craft [Item]:" + ChatColor.GRAY + " Opens the crafting menu.");
         sender.sendMessage(ChatColor.GOLD + "/QA shop: " + ChatColor.GRAY + "Opens the shop menu");
+        if (sender.hasPermission("qualityarmory.outpost"))
+            sender.sendMessage(ChatColor.GOLD + "/QA outpost: " + ChatColor.GRAY
+                    + "Builds a 33x33, multi-storey siege arena at your feet (overwrites terrain).");
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
                 + "Sends the link to the resourcepack. Disables the resourcepack prompts until /qa sendResourcepack is used");
