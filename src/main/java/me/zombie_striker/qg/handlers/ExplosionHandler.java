@@ -43,7 +43,8 @@ public class ExplosionHandler {
 		for(Entity e : loc.getWorld().getNearbyEntities(loc, radius, radius, radius)) {
 			if(e instanceof Damageable) {
 				Damageable d = (Damageable) e;
-				double distance = e.getLocation().distance(loc);
+				// Clamp point-blank damage to avoid Infinity for entities at blast center.
+				double distance = Math.max(1.0, e.getLocation().distance(loc));
 				GunDamageHandler.damage(d, damage/distance, shooter, false);
 
 				if (knockback != 0 && e instanceof LivingEntity && distance < radius) {
