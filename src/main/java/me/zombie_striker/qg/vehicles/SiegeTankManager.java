@@ -2,6 +2,8 @@ package me.zombie_striker.qg.vehicles;
 
 import com.cryptomorin.xseries.messages.ActionBar;
 import me.zombie_striker.qg.QAMain;
+import me.zombie_striker.qg.api.QAWeaponDamageEntityEvent;
+import me.zombie_striker.qg.handlers.GunDamageHandler;
 import me.zombie_striker.qg.guns.Gun;
 import me.zombie_striker.qg.guns.projectiles.RocketProjectile;
 import me.zombie_striker.qg.handlers.ExplosionHandler;
@@ -15,6 +17,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Horse;
@@ -23,8 +26,12 @@ import org.bukkit.entity.Snowball;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
@@ -56,6 +63,7 @@ public final class SiegeTankManager implements Listener {
     private static final int SHELL_RANGE_TICKS = 100;
     private final QAMain plugin;
     private final Map<UUID, Tank> tanks = new ConcurrentHashMap<>();
+    private final Map<UUID, Tank> armorHitboxes = new ConcurrentHashMap<>();
 
     public SiegeTankManager(QAMain plugin) {
         this.plugin = plugin;
@@ -109,6 +117,7 @@ public final class SiegeTankManager implements Listener {
         Tank tank = new Tank(horse);
         if (tanks.putIfAbsent(horse.getUniqueId(), tank) != null) return;
         tank.createModel();
+        tank.createHitboxes();
         tank.tickTask = new FoliaRunnable() {
             private int counter;
 
@@ -147,15 +156,61 @@ public final class SiegeTankManager implements Listener {
         Horse horse = (Horse) event.getRightClicked();
         if (!horse.getScoreboardTags().contains(TANK_TAG)) return;
         event.setCancelled(true);
+        mount(event.getPlayer(), horse);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onArmorClick(PlayerInteractAtEntityEvent event) {
+        Tank tank = armorHitboxes.get(event.getRightClicked().getUniqueId());
+        if (tank == null) return;
+        event.setCancelled(true);
+        mount(event.getPlayer(), tank.horse);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onArmorManipulate(PlayerArmorStandManipulateEvent event) {
+        if (armorHitboxes.containsKey(event.getRightClicked().getUniqueId())) event.setCancelled(true);
+    }
+
+    private void mount(Player player, Horse horse) {
         if (!tanks.containsKey(horse.getUniqueId())) attach(horse);
         if (!horse.getPassengers().isEmpty()) {
-            event.getPlayer().sendMessage(ChatColor.YELLOW + "The driver's seat is occupied.");
+            player.sendMessage(ChatColor.YELLOW + "The driver's seat is occupied.");
             return;
         }
         horse.setAI(true);
-        horse.addPassenger(event.getPlayer());
-        event.getPlayer().sendMessage(ChatColor.GOLD + "Drive with WASD, aim with your view, F = cannon. "
+        horse.addPassenger(player);
+        player.sendMessage(ChatColor.GOLD + "Drive with WASD, aim with your view, F = cannon. "
                 + "Dismount with Shift.");
+    }
+
+    // Real weapon bullets hit the tank's distributed armor plate entities. Forward
+    // that single hit to the large-health vehicle and cancel damage to the plate.
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBulletHitArmor(QAWeaponDamageEntityEvent event) {
+        Tank tank = armorHitboxes.get(event.getDamaged().getUniqueId());
+        if (tank == null) return;
+        event.setCancelled(true);
+        if (tank.horse.isValid() && !tank.horse.isDead()) {
+            GunDamageHandler.damage(tank.horse, Math.max(0, event.getDamage()),
+                    event.getPlayer(), true);
+        }
+    }
+
+    // Normal melee/projectile attacks also damage armor; blast damage is only
+    // applied to the main horse once, avoiding 9x splash from armor duplicates.
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onArmorDamage(EntityDamageEvent event) {
+        Tank tank = armorHitboxes.get(event.getEntity().getUniqueId());
+        if (tank == null) return;
+        event.setCancelled(true);
+        if (GunDamageHandler.isWeaponDamage() || !(event instanceof EntityDamageByEntityEvent)) return;
+        if (!tank.horse.isValid() || tank.horse.isDead()) return;
+        EntityDamageByEntityEvent hit = (EntityDamageByEntityEvent) event;
+        if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_EXPLOSION
+                && event.getCause() != EntityDamageEvent.DamageCause.BLOCK_EXPLOSION) {
+            tank.horse.damage(Math.max(0, hit.getFinalDamage()), hit.getDamager());
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -297,6 +352,7 @@ public final class SiegeTankManager implements Listener {
     private final class Tank {
         private final Horse horse;
         private final List<Part> parts = new ArrayList<>();
+        private final List<ArmorStand> plates = new ArrayList<>();
         private FoliaRunnable tickTask;
         private volatile boolean charging;
         private volatile long readyAt;
@@ -348,6 +404,38 @@ public final class SiegeTankManager implements Listener {
             syncModel();
         }
 
+        private void createHitboxes() {
+            // Nine invisible real damageable entities cover the visible armored hull.
+            // Plate hits transfer to the single 400-HP tank instead of dying separately.
+            for (float z : new float[]{-2.0f, 0.0f, 2.0f}) {
+                for (float x : new float[]{-1.25f, 0.0f, 1.25f}) {
+                    ArmorStand plate = horse.getWorld().spawn(horse.getLocation(), ArmorStand.class);
+                    plate.setVisible(false);
+                    plate.setGravity(false);
+                    plate.setBasePlate(false);
+                    plate.setArms(false);
+                    plate.setPersistent(false);
+                    plate.setSilent(true);
+                    plates.add(plate);
+                    armorHitboxes.put(plate.getUniqueId(), this);
+                }
+            }
+            syncHitboxes(horse.getLocation());
+        }
+
+        private void syncHitboxes(Location base) {
+            int index = 0;
+            for (float z : new float[]{-2.0f, 0.0f, 2.0f}) {
+                for (float x : new float[]{-1.25f, 0.0f, 1.25f}) {
+                    ArmorStand plate = plates.get(index++);
+                    if (!plate.isValid()) continue;
+                    Vector offset = new Vector(x, 0.10, z).rotateAroundY(
+                            -Math.toRadians(base.getYaw()));
+                    FoliaRunnable.teleport(plate, base.clone().add(offset));
+                }
+            }
+        }
+
         private void syncModel() {
             Location base = horse.getLocation();
             float hullYaw = base.getYaw();
@@ -362,6 +450,7 @@ public final class SiegeTankManager implements Listener {
                 target.setPitch(0);
                 FoliaRunnable.teleport(part.display, target);
             }
+            syncHitboxes(base);
         }
 
         private void stop() {
@@ -373,6 +462,11 @@ public final class SiegeTankManager implements Listener {
                 if (part.display.isValid()) part.display.remove();
             }
             parts.clear();
+            for (ArmorStand plate : plates) {
+                armorHitboxes.remove(plate.getUniqueId(), this);
+                if (plate.isValid()) plate.remove();
+            }
+            plates.clear();
         }
     }
 
