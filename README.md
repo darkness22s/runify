@@ -171,6 +171,9 @@ large **185 × 185** dedicated siege playground at your feet. **Back up the worl
 construction clears and replaces blocks inside nine structures and levels roads.
 Prefer a fresh flat battle world. Protected blocks and claimed regions are skipped.
 
+Nearby teammates can use the status, raid and repair commands for co-op defense.
+Floating labels above each lodestone show the current district integrity.
+
 The generated civilization includes a 38-block **Crown Citadel**, four tall
 **Sentinel Outposts**, the **Golden Granary**, **Iron Foundry**,
 **Sanctuary Clinic** and **Azure Waterworks**. Illuminated roads connect the
@@ -185,6 +188,7 @@ The tracked objective state persists through server restarts.
 | Command | Purpose |
 | --- | --- |
 | `/qa civ` | Build your nine-district civilization (one per player) |
+| `/qa cannon` | Deploy one independent 3D cannon at your current location |
 | `/qa civ status` | Display each district's integrity and coordinates |
 | `/qa civ locate` | Locate your capital and other districts |
 | `/qa civ raid` | Start a multi-front hostile raid (four-minute cooldown) |
