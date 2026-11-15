@@ -1,6 +1,6 @@
 # QualityArmory Hit Preview (Fabric)
 
-Client-side hit preview for Minecraft 1.20.6 / Fabric Loader 0.15.11+ (Java 21).
+Client-side hit preview for Minecraft 1.21.11 / Fabric Loader 0.17.3+ (Java 21).
 
 ## Build
 
