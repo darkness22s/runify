@@ -35,7 +35,7 @@ final class TerritoryBuilder {
             done.run();
             return;
         }
-        Location regionCenter = new Location(world, site.x + 0.5, world.getHighestBlockYAt(site.x, site.z), site.z + 0.5);
+        Location regionCenter = new Location(world, site.x + 0.5, 80, site.z + 0.5);
         // HighestBlockYAt is only called here after the correct region task is scheduled.
         FoliaRunnable.runRegionTask(plugin, regionCenter, () -> {
             site.y = Math.max(world.getMinHeight() + 1,
@@ -140,7 +140,7 @@ final class TerritoryBuilder {
     private void decorate(TerritoryCivilizations.Civ civ, TerritoryCivilizations.Site site, Location center) {
         if (!site.built) return;
         float yaw = (float) Math.toDegrees(Math.atan2(-site.x + civ.centerX, site.z - civ.centerZ));
-        Location terrace = center.clone().add(12, HEIGHT - 5, 12);
+        Location terrace = center.clone().add(12, 27, 12);
         FoliaRunnable.runRegionTask(plugin, terrace, () ->
                 cannons.place(civ.owner + "-" + site.id, terrace, yaw));
 
