@@ -182,6 +182,7 @@ A civilization will not be placed over another civilization's claim.
 /qa civ                                    # claim a 512-block radius for yourself
 /qa civ create Alex 768                    # admin assigns Alex a 768-block radius
 /qa civ status                             # owner, radius, fortress HP, upgrades
+/qa civ resume                             # resume construction interrupted by a restart
 /qa civ locate                             # coordinates for every outpost
 /qa civ damage                             # damaged forts + last damage coordinates
 /qa civ ally Jordan                        # add/remove an allied teammate
