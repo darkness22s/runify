@@ -226,6 +226,7 @@ public final class TerritoryCivilizations implements Listener {
         if(c==null){player.sendMessage(ChatColor.RED+"No civilization membership. Use /qa civ.");return;}
         switch(action) {
             case "status": status(player,c);break;
+            case "resume": resume(player,c);break;
             case "locate": locate(player,c);break;
             case "damage": damageReport(player,c);break;
             case "shop": shop(player,c);break;
@@ -250,7 +251,7 @@ public final class TerritoryCivilizations implements Listener {
 
     public List<String> complete(String[] args) {
         if(args.length==2) {
-            List<String> choices=Arrays.asList("create","status","locate","damage","balance","shop","upgrade","horn","target","ally");
+            List<String> choices=Arrays.asList("create","resume","status","locate","damage","balance","shop","upgrade","horn","target","ally");
             List<String> result=new ArrayList<>();
             for(String s:choices)if(s.startsWith(args[1].toLowerCase(Locale.ROOT)))result.add(s);
             return result;
@@ -315,6 +316,34 @@ public final class TerritoryCivilizations implements Listener {
                 });
             }
         } finally { creating.remove(owner.getUniqueId()); }
+    }
+
+    private void resume(Player player,Civ c) {
+        if(!c.owner.equals(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED+"Only a civilization owner can resume construction.");
+            return;
+        }
+        if(c.complete){player.sendMessage(ChatColor.GREEN+"Your civilization is already built.");return;}
+        if(!creating.add(c.owner))return;
+        List<Site> unfinished=new ArrayList<>();
+        synchronized(c.sites) {
+            for(Site site:c.sites)if(!site.built)unfinished.add(site);
+        }
+        if(unfinished.isEmpty()) {
+            c.complete=true;creating.remove(c.owner);save();
+            player.sendMessage(ChatColor.GREEN+"All outposts are built.");return;
+        }
+        AtomicInteger pending=new AtomicInteger(unfinished.size());
+        for(Site site:unfinished)builder.build(c,site,()->{
+            if(pending.decrementAndGet()==0){
+                c.complete=true;
+                creating.remove(c.owner);
+                save();
+                FoliaRunnable.runEntityTask(plugin,player,()->player.sendMessage(
+                        ChatColor.GREEN+"Resumed construction complete. Review /qa civ status."));
+            }
+        });
+        player.sendMessage(ChatColor.YELLOW+"Resuming "+unfinished.size()+" unfinished outposts.");
     }
 
     private Site chooseOutpost(Civ c,Random rng,int index) {
@@ -607,7 +636,9 @@ public final class TerritoryCivilizations implements Listener {
 
     private void showWarAlert(Civ civ,String intruder,String reason,String key) {
         long now=System.currentTimeMillis();
-        Long previous=alerts.put(key,now);
+        // One title per civilization per cooldown, regardless of overlapping
+        // RPG hit / explosion events or multiple approaching entities.
+        Long previous=alerts.put(civ.owner.toString(),now);
         if(previous!=null&&now-previous<ALERT_COOLDOWN)return;
         for(Player p:Bukkit.getOnlinePlayers()) {
             if(!civ.member(p.getUniqueId()))continue;
@@ -824,7 +855,9 @@ public final class TerritoryCivilizations implements Listener {
     }
 
     private void registerExplosion(Location impact,List<Block> blocks,Player source) {
-        destructiveImpact(source,impact);
+        // For source-less vanilla explosions, still log structural damage. RPGs
+        // report their actual shooter via the explosive weapon pipeline afterward.
+        if(source!=null)destructiveImpact(source,impact);
         for(Civ c:civilizations.values()) {
             Map<Site,Integer> count=new HashMap<>();
             for(Block block:blocks) {
