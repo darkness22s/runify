@@ -53,6 +53,7 @@ public final class TerritoryCivilizations implements Listener {
     private static final long ALERT_COOLDOWN = 9000;
     private final QAMain plugin;
     private final TerritoryBuilder builder;
+    private final SiegeCannon siegeCannons;
     private final VexbotGuardBridge guards;
     private final File dataFile;
     private final Map<UUID,Civ> civilizations = new ConcurrentHashMap<>();
@@ -110,6 +111,7 @@ public final class TerritoryCivilizations implements Listener {
 
     public TerritoryCivilizations(QAMain plugin, SiegeCannon cannons) {
         this.plugin=plugin;
+        this.siegeCannons=cannons;
         this.builder=new TerritoryBuilder(plugin,cannons);
         this.guards=new VexbotGuardBridge(plugin);
         this.dataFile=new File(plugin.getDataFolder(),"territories.yml");
@@ -360,12 +362,17 @@ public final class TerritoryCivilizations implements Listener {
     private synchronized void award(UUID uid,int amount){
         wallets.put(uid,Math.min(MAX_COINS,coins(uid)+amount));save();
     }
-    private synchronized boolean pay(Player payer,int amount){
+    private synchronized boolean pay(Player payer,Civ c,int amount){
         UUID id=payer.getUniqueId();
-        if(coins(id)<amount){
-            payer.sendMessage(ChatColor.RED+"Need "+amount+" coins (balance "+coins(id)+").");return false;
+        int personal=coins(id);
+        if((long)personal+c.treasury<amount){
+            payer.sendMessage(ChatColor.RED+"Need "+amount+" coins (wallet "+personal
+                    +", treasury "+c.treasury+").");return false;
         }
-        wallets.put(id,coins(id)-amount);save();return true;
+        int fromWallet=Math.min(personal,amount);
+        wallets.put(id,personal-fromWallet);
+        c.treasury-=amount-fromWallet;
+        save();return true;
     }
 
     private static String describe(int x,int y,int z){return x+", "+y+", "+z;}
@@ -416,11 +423,11 @@ public final class TerritoryCivilizations implements Listener {
         switch(type) {
             case "cannon":
                 if(c.cannonLevel>=5){p.sendMessage(ChatColor.YELLOW+"Max cannon level.");return;}
-                if(pay(p,300)){c.cannonLevel++;save();p.sendMessage(ChatColor.GREEN+"Cannon level "+c.cannonLevel);}
+                if(pay(p,c,300)){c.cannonLevel++;save();p.sendMessage(ChatColor.GREEN+"Cannon level "+c.cannonLevel);}
                 break;
             case "weapon":
                 if(c.weaponLevel>=5){p.sendMessage(ChatColor.YELLOW+"Max weapon level.");return;}
-                if(pay(p,250)){c.weaponLevel++;save();p.sendMessage(ChatColor.GREEN+"Weapon level "+c.weaponLevel);}
+                if(pay(p,c,250)){c.weaponLevel++;save();p.sendMessage(ChatColor.GREEN+"Weapon level "+c.weaponLevel);}
                 break;
             case "radius":
                 if(c.radius+128>MAX_RADIUS){p.sendMessage(ChatColor.YELLOW+"Territory at maximum radius.");return;}
@@ -430,7 +437,7 @@ public final class TerritoryCivilizations implements Listener {
                         p.sendMessage(ChatColor.RED+"Expansion would overlap another civilization.");return;
                     }
                 }
-                if(pay(p,450)){c.radius+=128;save();p.sendMessage(ChatColor.GREEN+"Territory radius "+c.radius);}
+                if(pay(p,c,450)){c.radius+=128;save();p.sendMessage(ChatColor.GREEN+"Territory radius "+c.radius);}
                 break;
             case "outpost":
                 if(c.sites.size()>=MAX_FORTS+1){p.sendMessage(ChatColor.YELLOW+"Max outposts reached.");return;}
@@ -438,7 +445,7 @@ public final class TerritoryCivilizations implements Listener {
                 Site s=chooseExtraOutpost(c,r);
                 if(s==null){p.sendMessage(ChatColor.RED+"No suitable separated space inside borders.");return;}
                 int price=500+Math.max(0,c.sites.size()-INITIAL_FORTS-1)*150;
-                if(pay(p,price)) {
+                if(pay(p,c,price)) {
                     c.sites.add(s);save();
                     p.sendMessage(ChatColor.GOLD+"Scouting "+s.name+" at "+s.x+", "+s.z+"...");
                     builder.build(c,s,()->{save();FoliaRunnable.runEntityTask(plugin,p,()->p.sendMessage(ChatColor.GREEN+"Outpost completed: "+s.name));});
@@ -449,7 +456,7 @@ public final class TerritoryCivilizations implements Listener {
                 if(!guards.available()){p.sendMessage(ChatColor.RED+"Install compatible VexBot Paper first (1.21.11+).");return;}
                 Location loc=c.centerLocation();
                 if(loc==null){p.sendMessage(ChatColor.RED+"Capital world unavailable.");return;}
-                if(pay(p,250)){
+                if(pay(p,c,250)){
                     c.hiredGuards+=2;save();
                     guards.provision(c.owner,2,loc);
                     p.sendMessage(ChatColor.GREEN+"Purchased 2 VexBot guards for "+Bukkit.getOfflinePlayer(c.owner).getName());
@@ -458,7 +465,7 @@ public final class TerritoryCivilizations implements Listener {
             case "repair":
                 Site damaged=nearestDamaged(c,p.getLocation());
                 if(damaged==null){p.sendMessage(ChatColor.YELLOW+"No damaged outpost within 48 blocks.");return;}
-                if(pay(p,120)){
+                if(pay(p,c,120)){
                     damaged.hp=100;save();
                     p.sendMessage(ChatColor.GREEN+"Restoring "+damaged.name+" walls and its objective.");
                     builder.build(c,damaged,()->{builder.showStatus(c,damaged);save();});
@@ -563,6 +570,10 @@ public final class TerritoryCivilizations implements Listener {
 
     private static String warKey(UUID attacker,UUID defender){return attacker+"!"+defender;}
 
+    private boolean warExists(UUID a,UUID b) {
+        return wars.containsKey(warKey(a,b))||wars.containsKey(warKey(b,a));
+    }
+
     private void declareWar(Player invader,Civ territory,String reason) {
         if(territory.member(invader.getUniqueId()))return;
         Civ own=memberCiv(invader);
@@ -570,6 +581,11 @@ public final class TerritoryCivilizations implements Listener {
         if(attacker.equals(territory.owner))return;
         String key=warKey(attacker,territory.owner);
         War war=wars.computeIfAbsent(key,k->new War(attacker,territory.owner));
+        if(territory.hiredGuards>0&&guards.available()) {
+            guards.attack(territory.owner,invader);
+            Player commander=Bukkit.getPlayer(territory.owner);
+            if(commander!=null)siegeCannons.fireGuardSalvo(territory.owner,commander,invader.getLocation());
+        }
         showWarAlert(territory,invader.getName(),reason,key);
         if(own!=null)showWarAlert(own,Bukkit.getOfflinePlayer(territory.owner).getName(),
                 "WAR DECLARED",key+"-attacker");
@@ -629,12 +645,20 @@ public final class TerritoryCivilizations implements Listener {
         if(defending==null && attacking==null && victimTeam==null)return;
         if(defending!=null&&defending.member(killer.getUniqueId())
                 &&defending.member(victim.getUniqueId()))return;
+        boolean oppositeSides=defending!=null
+                &&(defending.member(killer.getUniqueId())!=defending.member(victim.getUniqueId()));
+        if(attacking!=null&&victimTeam!=null
+                &&!attacking.owner.equals(victimTeam.owner))
+            oppositeSides=oppositeSides||warExists(attacking.owner,victimTeam.owner)
+                    ||at(killer.getLocation())!=null||at(victim.getLocation())!=null;
+        if(!oppositeSides)return;
         String payKey=killer.getUniqueId()+"!"+victim.getUniqueId();
         long now=System.currentTimeMillis();
         Long old=killPayouts.put(payKey,now);
         if(old!=null&&now-old<KILL_COOLDOWN)return;
         award(killer.getUniqueId(),100);
-        Civ recipient=attacking!=null?attacking:defending;
+        Civ recipient=attacking!=null?attacking
+                :defending!=null&&defending.member(killer.getUniqueId())?defending:null;
         if(recipient!=null){recipient.treasury+=25;save();}
         killer.sendMessage(ChatColor.GOLD+"+100 coins for an enemy elimination"
                 +ChatColor.GRAY+" (use /qa civ shop)");
