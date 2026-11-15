@@ -256,10 +256,10 @@ public final class SiegeCannon implements Listener {
             return;
         }
         // Once fired, this gun is locked for thirty real-world seconds, including restarts.
-        b.readyAt = System.currentTimeMillis() + RELOAD_MILLIS;
+        b.readyAt = System.currentTimeMillis() + effectiveReload(battery);
         save();
         player.sendMessage(ChatColor.GOLD + "FIRE! " + ChatColor.GRAY
-                + "30-second reload. The heavy shell drops rapidly over distance.");
+                + ((effectiveReload(battery)+999)/1000) + "s reload. The heavy shell drops rapidly over distance.");
         battery.getWorld().playSound(battery, Sound.ENTITY_GENERIC_EXPLODE, 4.0f, 0.55f);
         Vector aim = player.getEyeLocation().getDirection().normalize();
         Location muzzle = battery.clone().add(0, 1.35, 0).add(aim.clone().multiply(3));
@@ -306,12 +306,56 @@ public final class SiegeCannon implements Listener {
             point.getWorld().spawnParticle(Particle.SMOKE, point, 28, 1, 1, 1, 0.02);
             return;
         }
-        int power = Math.min(32, Math.max(2, QAMain.rpgExplosionPower * 2));
-        double damage = 2 * currentRpgDamage();
+        double upgrade = plugin.getTerritories() == null ? 1.0
+                : plugin.getTerritories().cannonMultiplierAt(point);
+        int power = Math.min(32, Math.max(2, (int) Math.ceil(QAMain.rpgExplosionPower * 2 * upgrade)));
+        double damage = 2 * currentRpgDamage() * upgrade;
         ExplosionHandler.handleExplosion(point, power, power);
         ExplosionHandler.handleAOEExplosion(shooter, point, damage, power * 1.6, 1.4);
         point.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, point, 1);
         point.getWorld().playSound(point, Sound.ENTITY_GENERIC_EXPLODE, 6, 0.65f);
+    }
+
+    private long effectiveReload(Location location) {
+        return plugin.getTerritories() == null ? RELOAD_MILLIS
+                : plugin.getTerritories().cannonReloadAt(location);
+    }
+
+    /**
+     * Guard-controlled artillery coverage. Only a purchased VexBot garrison can
+     * request a salvo; shots originate from the existing real 3D cannon and use
+     * its ordinary ballistic simulation and reload state.
+     *
+     * VexBot does not expose a Paper API for driving plugin-specific vehicles;
+     * this is an artillery order adapter, not a fake claim of NPC vehicle AI.
+     */
+    public boolean fireGuardSalvo(UUID civilizationOwner, Player commander, Location target) {
+        if (commander == null || target == null) return false;
+        Battery candidate = null;
+        double best = 55 * 55;
+        for (Battery battery : batteries.values()) {
+            if (!battery.id.startsWith(civilizationOwner.toString() + "-")) continue;
+            if (System.currentTimeMillis() < battery.readyAt) continue;
+            Location origin = battery.location();
+            if (origin == null || !origin.getWorld().equals(target.getWorld())) continue;
+            double distance = origin.distanceSquared(target);
+            if (distance < best) {
+                best = distance;
+                candidate = battery;
+            }
+        }
+        if (candidate == null) return false;
+        final Battery gun = candidate;
+        Location origin = gun.location();
+        // The heavy shell has gravity; a small upward lead is necessary.
+        Vector direction = target.clone().add(0, 4, 0).toVector()
+                .subtract(origin.clone().add(0, 1.35, 0).toVector()).normalize();
+        if (direction.lengthSquared() < 0.01) return false;
+        gun.readyAt = System.currentTimeMillis() + effectiveReload(origin);
+        save();
+        Location muzzle = origin.clone().add(0, 1.35, 0).add(direction.clone().multiply(3));
+        FoliaRunnable.runRegionTask(plugin, muzzle, () -> launch(commander, muzzle, direction.multiply(1.65)));
+        return true;
     }
 
     private double currentRpgDamage() {
