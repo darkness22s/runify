@@ -55,6 +55,7 @@ public final class TerritoryCivilizations implements Listener {
     private final TerritoryBuilder builder;
     private final SiegeCannon siegeCannons;
     private final VexbotGuardBridge guards;
+    private final VexbotVehicleController vehicleGuards;
     private final File dataFile;
     private final Map<UUID,Civ> civilizations = new ConcurrentHashMap<>();
     private final Map<UUID,Integer> wallets = new ConcurrentHashMap<>();
@@ -117,6 +118,21 @@ public final class TerritoryCivilizations implements Listener {
         this.guards=new VexbotGuardBridge(plugin);
         this.dataFile=new File(plugin.getDataFolder(),"territories.yml");
         load();
+        this.vehicleGuards = new VexbotVehicleController(plugin,this,cannons,guards);
+    }
+
+    public void shutdown() { vehicleGuards.shutdown(); save(); }
+
+    public boolean hasCivilization(UUID owner) { return civilizations.containsKey(owner); }
+
+    public Location capitalOf(UUID owner) {
+        Civ civ=civilizations.get(owner);
+        return civ==null?null:civ.centerLocation();
+    }
+
+    public boolean isFriendly(UUID owner,UUID player) {
+        Civ civ=civilizations.get(owner);
+        return civ!=null&&(civ.member(player)||vehicleGuards!=null&&vehicleGuards.isGuard(owner,player));
     }
 
     private synchronized void load() {
@@ -259,6 +275,11 @@ public final class TerritoryCivilizations implements Listener {
         if(c==null){player.sendMessage(ChatColor.RED+"No civilization membership. Use /qa civ.");return;}
         switch(action) {
             case "status": status(player,c);break;
+            case "guard":
+                if(!c.owner.equals(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED+"Only the civilization owner can assign vehicle crews.");
+                } else vehicleGuards.command(player,c.owner,args);
+                break;
             case "wars": warReport(player,c);break;
             case "resume": resume(player,c);break;
             case "locate": locate(player,c);break;
@@ -285,7 +306,7 @@ public final class TerritoryCivilizations implements Listener {
 
     public List<String> complete(String[] args) {
         if(args.length==2) {
-            List<String> choices=Arrays.asList("create","resume","status","wars","locate","damage","balance","shop","upgrade","horn","target","ally");
+            List<String> choices=Arrays.asList("create","resume","guard","status","wars","locate","damage","balance","shop","upgrade","horn","target","ally");
             List<String> result=new ArrayList<>();
             for(String s:choices)if(s.startsWith(args[1].toLowerCase(Locale.ROOT)))result.add(s);
             return result;
@@ -294,6 +315,10 @@ public final class TerritoryCivilizations implements Listener {
             return Arrays.asList("cannon","weapon","outpost","radius","guards","repair");
         if(args.length==3&&args[1].equalsIgnoreCase("horn"))
             return Arrays.asList("attack","retreat","victory");
+        if(args.length==3&&args[1].equalsIgnoreCase("guard"))
+            return Arrays.asList("list","bind","unbind");
+        if(args.length==5&&args[1].equalsIgnoreCase("guard")&&args[2].equalsIgnoreCase("bind"))
+            return Arrays.asList("tank","cannon");
         return Collections.emptyList();
     }
 
@@ -545,8 +570,10 @@ public final class TerritoryCivilizations implements Listener {
                 Location loc=new Location(w,station.x+2,station.y+1,station.z-2);
                 if(pay(p,c,250)){
                     c.hiredGuards+=2;save();
-                    guards.provision(c.owner,2,loc);
-                    p.sendMessage(ChatColor.GREEN+"Stationed 2 VexBot guards at "+station.name+".");
+                    Location tankPark=new Location(w,station.x+7.5,station.y+1,station.z+6.5);
+                    plugin.getTanks().spawnForCivilization(c.owner,tankPark);
+                    vehicleGuards.recruitNew(c.owner,loc,2,()->guards.provision(c.owner,2,loc));
+                    p.sendMessage(ChatColor.GREEN+"Stationed 2 VexBot guards (tank pilot and cannon gunner) at "+station.name+".");
                 }
                 break;
             case "repair":
@@ -651,7 +678,7 @@ public final class TerritoryCivilizations implements Listener {
         UUID now=territory==null?null:territory.owner;
         if(now==null)currentlyInside.remove(p.getUniqueId());
         else currentlyInside.put(p.getUniqueId(),now);
-        if(territory!=null&&!now.equals(last)&&!territory.member(p.getUniqueId()))
+        if(territory!=null&&!now.equals(last)&&!isFriendly(now,p.getUniqueId()))
             declareWar(p,territory,"BORDER BREACH");
     }
 
@@ -666,7 +693,7 @@ public final class TerritoryCivilizations implements Listener {
     }
 
     private void declareWar(Player invader,Civ territory,String reason) {
-        if(territory.member(invader.getUniqueId()))return;
+        if(isFriendly(territory.owner,invader.getUniqueId()))return;
         Civ own=memberCiv(invader);
         UUID attacker=own==null?invader.getUniqueId():own.owner;
         if(attacker.equals(territory.owner))return;
@@ -677,8 +704,7 @@ public final class TerritoryCivilizations implements Listener {
         if(existing==null)save();
         if(territory.hiredGuards>0&&guards.available()) {
             guards.attack(territory.owner,invader);
-            Player commander=Bukkit.getPlayer(territory.owner);
-            if(commander!=null)siegeCannons.fireGuardSalvo(territory.owner,commander,invader.getLocation());
+            vehicleGuards.attack(territory.owner,invader.getUniqueId());
         }
         showWarAlert(territory,invader.getName(),reason,key);
         if(own!=null)showWarAlert(own,Bukkit.getOfflinePlayer(territory.owner).getName(),
@@ -692,7 +718,7 @@ public final class TerritoryCivilizations implements Listener {
         Long previous=alerts.put(civ.owner.toString(),now);
         if(previous!=null&&now-previous<ALERT_COOLDOWN)return;
         for(Player p:Bukkit.getOnlinePlayers()) {
-            if(!civ.member(p.getUniqueId()))continue;
+            if(!isFriendly(civ.owner,p.getUniqueId()))continue;
             FoliaRunnable.runEntityTask(plugin,p,()->{
                 p.sendTitle(ChatColor.DARK_RED+"WAR DECLARED!",
                         ChatColor.GOLD+reason+" - "+intruder,10,75,15);
@@ -807,6 +833,7 @@ public final class TerritoryCivilizations implements Listener {
             if(target==null){leader.sendMessage(ChatColor.RED+"Enemy commander must be online.");return;}
             declareWar(leader,enemy,"ATTACK HORN");
             if(c.hiredGuards>0)guards.attack(c.owner,target);
+            vehicleGuards.attack(c.owner,target.getUniqueId());
             leader.sendMessage(ChatColor.RED+"ATTACK order issued to "+c.hiredGuards+" VexBot guards.");
             return;
         }
@@ -828,6 +855,7 @@ public final class TerritoryCivilizations implements Listener {
             }
             Location base=c.centerLocation();
             if(base!=null&&c.hiredGuards>0)guards.retreat(c.owner,base);
+            vehicleGuards.retreat(c.owner);
             leader.sendMessage(ChatColor.YELLOW+"RETREAT! Your guards are returning to the capital.");
             return;
         }
@@ -850,6 +878,7 @@ public final class TerritoryCivilizations implements Listener {
                     leader.sendTitle(ChatColor.GOLD+"VICTORY!",ChatColor.GREEN+"+350 coins",10,65,15);
                     if(c.hiredGuards>0&&c.centerLocation()!=null)
                         guards.retreat(c.owner,c.centerLocation());
+                    vehicleGuards.retreat(c.owner);
                     return;
                 }
             }
