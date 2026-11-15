@@ -182,6 +182,7 @@ A civilization will not be placed over another civilization's claim.
 /qa civ                                    # claim a 512-block radius for yourself
 /qa civ create Alex 768                    # admin assigns Alex a 768-block radius
 /qa civ status                             # owner, radius, fortress HP, upgrades
+/qa civ wars                               # active enemies and kill score
 /qa civ resume                             # resume construction interrupted by a restart
 /qa civ locate                             # coordinates for every outpost
 /qa civ damage                             # damaged forts + last damage coordinates
@@ -253,7 +254,7 @@ second: the same killer-victim pair has a **90-second payout cooldown**.
 | Repair | 120 | Restore a damaged nearby fortress and its core |
 
 Upgrades deduct the player's coins first, then the shared treasury if needed.
-Balances, horn assignments, allies, outpost locations, damage coordinates and
+Balances, active wars, truces, horn assignments, allies, outpost locations, damage coordinates and
 upgrade levels persist to `plugins/QualityArmory/territories.yml`.
 A castle's floating objective name shows its integrity. If blocks are
 destroyed, use `/qa civ damage` to find the most recently hit position.
