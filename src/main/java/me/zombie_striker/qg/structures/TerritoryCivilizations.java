@@ -163,12 +163,45 @@ public final class TerritoryCivilizations implements Listener {
                 plugin.getLogger().warning("Invalid territory for "+id+": "+e.getMessage());
             }
         }
+        if(data.isConfigurationSection("wars")) {
+            for(String id:data.getConfigurationSection("wars").getKeys(false)) {
+                String p="wars."+id+".";
+                try {
+                    UUID attacker=UUID.fromString(data.getString(p+"attacker"));
+                    UUID defender=UUID.fromString(data.getString(p+"defender"));
+                    if(!civilizations.containsKey(defender))continue;
+                    War war=new War(attacker,defender);
+                    war.attackKills=data.getInt(p+"attackKills");
+                    war.defenseKills=data.getInt(p+"defenseKills");
+                    war.lastKillTime=data.getLong(p+"lastKillTime");
+                    if(data.isString(p+"lastKiller"))
+                        war.lastKiller=UUID.fromString(data.getString(p+"lastKiller"));
+                    wars.put(warKey(attacker,defender),war);
+                } catch(IllegalArgumentException | NullPointerException ignored){}
+            }
+        }
+        if(data.isConfigurationSection("truces"))
+            for(String key:data.getConfigurationSection("truces").getKeys(false))
+                if(data.getLong("truces."+key)>System.currentTimeMillis())
+                    peaceUntil.put(key,data.getLong("truces."+key));
     }
 
     public synchronized void save() {
         YamlConfiguration data=new YamlConfiguration();
         for (Map.Entry<UUID,Integer> e : wallets.entrySet())
             data.set("wallets."+e.getKey(),e.getValue());
+        for(War war:wars.values()) {
+            String prefix="wars."+war.attacker+"_"+war.defender+".";
+            data.set(prefix+"attacker",war.attacker.toString());
+            data.set(prefix+"defender",war.defender.toString());
+            data.set(prefix+"attackKills",war.attackKills);
+            data.set(prefix+"defenseKills",war.defenseKills);
+            data.set(prefix+"lastKillTime",war.lastKillTime);
+            if(war.lastKiller!=null)data.set(prefix+"lastKiller",war.lastKiller.toString());
+        }
+        for(Map.Entry<String,Long> truce:peaceUntil.entrySet())
+            if(truce.getValue()>System.currentTimeMillis())
+                data.set("truces."+truce.getKey(),truce.getValue());
         for (Civ c : civilizations.values()) {
             String p="civilizations."+c.owner+".";
             data.set(p+"world",c.world.toString());
@@ -226,6 +259,7 @@ public final class TerritoryCivilizations implements Listener {
         if(c==null){player.sendMessage(ChatColor.RED+"No civilization membership. Use /qa civ.");return;}
         switch(action) {
             case "status": status(player,c);break;
+            case "wars": warReport(player,c);break;
             case "resume": resume(player,c);break;
             case "locate": locate(player,c);break;
             case "damage": damageReport(player,c);break;
@@ -251,7 +285,7 @@ public final class TerritoryCivilizations implements Listener {
 
     public List<String> complete(String[] args) {
         if(args.length==2) {
-            List<String> choices=Arrays.asList("create","resume","status","locate","damage","balance","shop","upgrade","horn","target","ally");
+            List<String> choices=Arrays.asList("create","resume","status","wars","locate","damage","balance","shop","upgrade","horn","target","ally");
             List<String> result=new ArrayList<>();
             for(String s:choices)if(s.startsWith(args[1].toLowerCase(Locale.ROOT)))result.add(s);
             return result;
@@ -417,6 +451,20 @@ public final class TerritoryCivilizations implements Listener {
                     +s.name+" "+s.hp+"/100 @ "+s.x+", "+s.z+(s.built?"":" [BUILDING]"));
         }
         player.sendMessage(ChatColor.GRAY+"Attack/Retreat/Victory horns: "+c.horns.keySet());
+    }
+
+    private void warReport(Player player,Civ c) {
+        player.sendMessage(ChatColor.GOLD+"=== Wars involving "+c.owner+" ===");
+        int count=0;
+        for(War war:wars.values()) {
+            if(!c.owner.equals(war.attacker)&&!c.owner.equals(war.defender))continue;
+            count++;
+            UUID opponent=c.owner.equals(war.defender)?war.attacker:war.defender;
+            player.sendMessage(ChatColor.RED+"vs "+Bukkit.getOfflinePlayer(opponent).getName()
+                    +ChatColor.GRAY+" | attack kills "+war.attackKills
+                    +" | defense kills "+war.defenseKills);
+        }
+        if(count==0)player.sendMessage(ChatColor.GRAY+"No active declared wars.");
     }
 
     private void locate(Player player,Civ c) {
@@ -625,7 +673,8 @@ public final class TerritoryCivilizations implements Listener {
         String key=warKey(attacker,territory.owner);
         Long peace=peaceUntil.get(key);
         if(peace!=null&&System.currentTimeMillis()<peace)return;
-        War war=wars.computeIfAbsent(key,k->new War(attacker,territory.owner));
+        War existing=wars.putIfAbsent(key,new War(attacker,territory.owner));
+        if(existing==null)save();
         if(territory.hiredGuards>0&&guards.available()) {
             guards.attack(territory.owner,invader);
             Player commander=Bukkit.getPlayer(territory.owner);
@@ -718,6 +767,7 @@ public final class TerritoryCivilizations implements Listener {
                 w.defenseKills++;w.lastKiller=killer.getUniqueId();w.lastKillTime=now;
             }
         }
+        save();
         currentlyInside.remove(victim.getUniqueId());
     }
 
@@ -766,6 +816,7 @@ public final class TerritoryCivilizations implements Listener {
                     String key=warKey(war.attacker,war.defender);
                     if(!wars.remove(key,war))continue;
                     peaceUntil.put(key,System.currentTimeMillis()+240000);
+                    save();
                     UUID winner=c.owner.equals(war.attacker)?war.defender:war.attacker;
                     Civ rival=civilizations.get(winner);
                     if(rival!=null) {
