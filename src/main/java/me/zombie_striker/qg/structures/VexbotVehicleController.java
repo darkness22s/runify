@@ -53,8 +53,10 @@ public final class VexbotVehicleController implements Listener {
         final UUID bot, owner;
         final Role role;
         volatile long lastOrder;
-        Assignment(UUID bot, UUID owner, Role role) {
+        final Location station;
+        Assignment(UUID bot, UUID owner, Role role, Location station) {
             this.bot = bot; this.owner = owner; this.role = role;
+            this.station = station;
         }
     }
 
@@ -105,7 +107,12 @@ public final class VexbotVehicleController implements Listener {
                 UUID bot = UUID.fromString(id);
                 UUID owner = UUID.fromString(config.getString(id + ".owner"));
                 Role role = Role.valueOf(config.getString(id + ".role"));
-                assignments.put(bot, new Assignment(bot, owner, role));
+                UUID world = UUID.fromString(config.getString(id + ".world"));
+                World destination = Bukkit.getWorld(world);
+                Location station = destination == null ? null : new Location(destination,
+                        config.getDouble(id + ".x"), config.getDouble(id + ".y"),
+                        config.getDouble(id + ".z"));
+                assignments.put(bot, new Assignment(bot, owner, role, station));
             } catch (IllegalArgumentException | NullPointerException ex) {
                 plugin.getLogger().warning("Invalid vehicle guard crew assignment: " + id);
             }
@@ -117,6 +124,12 @@ public final class VexbotVehicleController implements Listener {
         for (Assignment a : assignments.values()) {
             config.set(a.bot + ".owner", a.owner.toString());
             config.set(a.bot + ".role", a.role.name());
+            if (a.station != null) {
+                config.set(a.bot + ".world", a.station.getWorld().getUID().toString());
+                config.set(a.bot + ".x", a.station.getX());
+                config.set(a.bot + ".y", a.station.getY());
+                config.set(a.bot + ".z", a.station.getZ());
+            }
         }
         try { config.save(dataFile); }
         catch (IOException ex) { plugin.getLogger().warning("Cannot save guard crews: " + ex.getMessage()); }
@@ -198,7 +211,7 @@ public final class VexbotVehicleController implements Listener {
     }
 
     private void bind(UUID owner, Player bot, Role role) {
-        assignments.put(bot.getUniqueId(), new Assignment(bot.getUniqueId(), owner, role));
+        assignments.put(bot.getUniqueId(), new Assignment(bot.getUniqueId(), owner, role, bot.getLocation().clone()));
         save();
     }
 
@@ -209,29 +222,32 @@ public final class VexbotVehicleController implements Listener {
      */
     public void recruitNew(UUID owner, Location fort, int count, Runnable spawn) {
         if (!bridge.available()) return;
-        final Set<UUID> alreadyPresent = new HashSet<>();
-        World world = fort.getWorld();
-        for (Entity entity : world.getNearbyEntities(fort, 24, 12, 24)) {
-            if (entity instanceof Player) alreadyPresent.add(entity.getUniqueId());
-        }
-        spawn.run();
-        FoliaRunnable.runRegionTaskLater(plugin, fort, () -> {
-            int recruited = 0;
+        // All world entity inspection must occur on the fort's region thread.
+        FoliaRunnable.runRegionTask(plugin, fort, () -> {
+            final Set<UUID> alreadyPresent = new HashSet<>();
+            World world = fort.getWorld();
             for (Entity entity : world.getNearbyEntities(fort, 24, 12, 24)) {
-                if (!(entity instanceof Player)) continue;
-                Player p = (Player) entity;
-                if (!fakePlayer(p) || alreadyPresent.contains(p.getUniqueId())
-                        || assignments.containsKey(p.getUniqueId())) continue;
-                Role role = recruited == 0 ? Role.TANK : Role.CANNON;
-                bind(owner, p, role);
-                recruited++;
-                if (recruited >= count) break;
+                if (entity instanceof Player) alreadyPresent.add(entity.getUniqueId());
             }
-            if (recruited < count)
-                plugin.getLogger().warning("VexBot purchased guards: automatically identified "
-                        + recruited + "/" + count + " new bots. Use /qa civ guard bind <name> tank|cannon "
-                        + "if your VexBot build does not expose them as Bukkit Player entities.");
-        }, 100);
+            spawn.run();
+            FoliaRunnable.runRegionTaskLater(plugin, fort, () -> {
+                int recruited = 0;
+                for (Entity entity : world.getNearbyEntities(fort, 24, 12, 24)) {
+                    if (!(entity instanceof Player)) continue;
+                    Player p = (Player) entity;
+                    if (!fakePlayer(p) || alreadyPresent.contains(p.getUniqueId())
+                            || assignments.containsKey(p.getUniqueId())) continue;
+                    Role role = recruited == 0 ? Role.TANK : Role.CANNON;
+                    bind(owner, p, role);
+                    recruited++;
+                    if (recruited >= count) break;
+                }
+                if (recruited < count)
+                    plugin.getLogger().warning("VexBot purchased guards: automatically identified "
+                            + recruited + "/" + count + " new bots. Use /qa civ guard bind <name> tank|cannon "
+                            + "if your VexBot build does not expose them as Bukkit Player entities.");
+            }, 100);
+        });
     }
 
     public void attack(UUID civilization, UUID target) {
@@ -303,11 +319,12 @@ public final class VexbotVehicleController implements Listener {
                     }
                 }
             } else {
-                plugin.getTanks().commandGuard(assignment.owner, bot, capital);
-                if (bot.getVehicle() == null && here.distanceSquared(capital) > 100
+                Location home = withdrawing || assignment.station == null ? capital : assignment.station;
+                plugin.getTanks().commandGuard(assignment.owner, bot, home);
+                if (bot.getVehicle() == null && here.distanceSquared(home) > 100
                         && System.currentTimeMillis() - assignment.lastOrder > 20000) {
                     assignment.lastOrder = System.currentTimeMillis();
-                    bridge.gotoBot(bot, capital);
+                    bridge.gotoBot(bot, home);
                 }
             }
             return;
