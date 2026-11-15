@@ -350,10 +350,20 @@ public final class SiegeCannon implements Listener {
         if (candidate == null) return false;
         final Battery gun = candidate;
         Location origin = gun.location();
-        // The heavy shell has gravity; a small upward lead is necessary.
-        Vector direction = target.clone().add(0, 4, 0).toVector()
-                .subtract(origin.clone().add(0, 1.35, 0).toVector()).normalize();
-        if (direction.lengthSquared() < 0.01) return false;
+        // Solve a low-arc ballistic trajectory; direct aim would land short.
+        double dx = target.getX() - origin.getX();
+        double dz = target.getZ() - origin.getZ();
+        double horizontal = Math.hypot(dx, dz);
+        if (horizontal < 3 || horizontal > 70) return false;
+        final double speed = 1.65;
+        final double gravity = 0.082;
+        double dy = target.getY() - origin.getY() - 1.35;
+        double v2 = speed * speed;
+        double discriminant = v2 * v2 - gravity * (gravity * horizontal * horizontal + 2 * dy * v2);
+        if (discriminant < 0) return false;
+        double angle = Math.atan((v2 - Math.sqrt(discriminant)) / (gravity * horizontal));
+        Vector direction = new Vector(dx / horizontal * Math.cos(angle),
+                Math.sin(angle), dz / horizontal * Math.cos(angle));
         gun.readyAt = System.currentTimeMillis() + effectiveReload(origin);
         save();
         Location muzzle = origin.clone().add(0, 1.35, 0).add(direction.clone().multiply(3));
