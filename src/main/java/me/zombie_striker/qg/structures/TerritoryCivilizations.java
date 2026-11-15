@@ -421,6 +421,10 @@ public final class TerritoryCivilizations implements Listener {
     }
 
     private Civ memberCiv(Player player) {
+        if (vehicleGuards != null) {
+            UUID botOwner = vehicleGuards.civilizationOf(player.getUniqueId());
+            if (botOwner != null) return civilizations.get(botOwner);
+        }
         Civ own=civilizations.get(player.getUniqueId());
         if(own!=null)return own;
         for(Civ c:civilizations.values())if(c.allies.contains(player.getUniqueId()))return c;
@@ -673,6 +677,10 @@ public final class TerritoryCivilizations implements Listener {
                 && event.getFrom().getBlockX()==event.getTo().getBlockX()
                 && event.getFrom().getBlockZ()==event.getTo().getBlockZ()))return;
         Player p=event.getPlayer();
+        // A just-spawned VexBot must not declare war against its own host before
+        // the bot has been assigned to its purchased civilization squad.
+        if (p.getAddress() == null && vehicleGuards != null
+                && !vehicleGuards.isAnyGuard(p.getUniqueId())) return;
         Civ territory=at(event.getTo());
         UUID last=currentlyInside.get(p.getUniqueId());
         UUID now=territory==null?null:territory.owner;
@@ -778,12 +786,16 @@ public final class TerritoryCivilizations implements Listener {
         long now=System.currentTimeMillis();
         Long old=killPayouts.put(payKey,now);
         if(old!=null&&now-old<KILL_COOLDOWN)return;
-        award(killer.getUniqueId(),100);
+        UUID botCiv = vehicleGuards == null ? null : vehicleGuards.civilizationOf(killer.getUniqueId());
+        UUID beneficiary = botCiv == null ? killer.getUniqueId() : botCiv;
+        award(beneficiary,100);
         Civ recipient=attacking!=null?attacking
                 :defending!=null&&defending.member(killer.getUniqueId())?defending:null;
         if(recipient!=null){recipient.treasury+=25;save();}
-        killer.sendMessage(ChatColor.GOLD+"+100 coins for an enemy elimination"
-                +ChatColor.GRAY+" (use /qa civ shop)");
+        Player payee=Bukkit.getPlayer(beneficiary);
+        if(payee!=null) FoliaRunnable.runEntityTask(plugin,payee,()->
+                payee.sendMessage(ChatColor.GOLD+"+100 coins for an enemy elimination"
+                        +ChatColor.GRAY+" (use /qa civ shop)"));
         UUID killerSide=attacking==null?killer.getUniqueId():attacking.owner;
         UUID victimSide=victimTeam==null?victim.getUniqueId():victimTeam.owner;
         for(War w:wars.values()) {
