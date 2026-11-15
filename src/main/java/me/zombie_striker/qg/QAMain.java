@@ -51,6 +51,7 @@ import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
 import me.zombie_striker.qg.structures.SiegeOutpost;
 import me.zombie_striker.qg.structures.SiegeCannon;
 import me.zombie_striker.qg.structures.TerritoryCivilizations;
+import me.zombie_striker.qg.vehicles.SiegeTankManager;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -79,10 +80,12 @@ import java.util.logging.Level;
 
 public class QAMain extends JavaPlugin {
 
+    private SiegeTankManager siegeTanks;
     private SiegeCannon siegeCannons;
     private TerritoryCivilizations civilizationManager;
 
     public TerritoryCivilizations getTerritories() { return civilizationManager; }
+    public SiegeTankManager getTanks() { return siegeTanks; }
 
     private static String changelog = null;
 
@@ -523,6 +526,7 @@ public class QAMain extends JavaPlugin {
     public void onDisable() {
         if (civilizationManager != null) civilizationManager.save();
         if (siegeCannons != null) siegeCannons.save();
+        if (siegeTanks != null) siegeTanks.shutdown();
         for (Entry<MaterialStorage, CustomBaseObject> misc : miscRegister.entrySet()) {
             if (misc instanceof ThrowableItems) {
                 for (Entry<Entity, ThrowableHolder> e : ThrowableItems.throwItems.entrySet()) {
@@ -633,6 +637,8 @@ public class QAMain extends JavaPlugin {
             }
         }
 
+        siegeTanks = new SiegeTankManager(this);
+        Bukkit.getPluginManager().registerEvents(siegeTanks, this);
         siegeCannons = new SiegeCannon(this);
         civilizationManager = new TerritoryCivilizations(this, siegeCannons);
         Bukkit.getPluginManager().registerEvents(siegeCannons, this);
@@ -1253,6 +1259,8 @@ public class QAMain extends JavaPlugin {
                 s.add("civ");
             if (sender.hasPermission("qualityarmory.cannon") && b("cannon", args[0]))
                 s.add("cannon");
+            if (sender.hasPermission("qualityarmory.tank") && b("tank", args[0]))
+                s.add("tank");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1312,6 +1320,13 @@ public class QAMain extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("tank")) {
+                    if (!sender.hasPermission("qualityarmory.tank")) sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    else if (!(sender instanceof Player)) sender.sendMessage(prefix + ChatColor.RED + "Only players may deploy tanks.");
+                    else if (args.length != 1) sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa tank");
+                    else siegeTanks.spawn((Player) sender);
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("cannon")) {
                     if (!sender.hasPermission("qualityarmory.cannon")) {
                         sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
@@ -1777,6 +1792,9 @@ public class QAMain extends JavaPlugin {
         if (sender.hasPermission("qualityarmory.cannon"))
             sender.sendMessage(ChatColor.GOLD + "/QA cannon: " + ChatColor.GRAY
                     + "Deploy a standalone 3D siege cannon at your feet.");
+        if (sender.hasPermission("qualityarmory.tank"))
+            sender.sendMessage(ChatColor.GOLD + "/QA tank: " + ChatColor.GRAY
+                    + "Deploy a drivable 3D siege tank with heavy cannon.");
         if (sender.hasPermission("qualityarmory.civ")) {
             sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
                     + "Creates a player-owned territory with five widely scattered forts (overwrites terrain).");
