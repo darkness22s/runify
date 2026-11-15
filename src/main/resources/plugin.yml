@@ -1,6 +1,6 @@
 main: me.zombie_striker.qg.QAMain
 version: ${project.version}
-api-version: 1.13
+api-version: '1.21.11'
 folia-supported: true
 name: QualityArmory
 commands:
@@ -27,7 +27,11 @@ permissions:
       qualityarmory.outpost: true
       qualityarmory.civ: true
       qualityarmory.civ.manage: true
-      qualityarmory.cannon: true
+      qualityarmory.tank:
+    description: Deploy a drivable 3D tank with a heavy cannon
+    default: op
+  qualityarmory.cannon: true
+      qualityarmory.tank: true
   qualityarmory.cannon:
     description: Deploy a stand-alone interactive 3D siege cannon
     default: op
