@@ -109,3 +109,10 @@ DestructableMaterials:
 # Fallback only used when no RPG gun has been registered by an expansion pack.
 cannon:
   fallbackRpgDamage: 20
+
+# Runify tank gameplay (Minecraft 1.21.11 Paper / Java 21)
+tank:
+  health: 400
+  movementSpeed: 0.20
+  chargeSeconds: 2
+  reloadSeconds: 35
