@@ -43,17 +43,12 @@ public final class VexbotGuardBridge {
         if (!available() || amount < 1 || amount > 8) return;
         String name = team(owner);
         send("vexbot team create " + name);
-        Player leader = Bukkit.getPlayer(owner);
-        if (leader != null) send("vexbot team " + name + " addplayer " + leader.getName());
+        // Player ownership/alliance is enforced by Runify's territory roster.
+        // VexBot's documented team <team> members command accepts bot targets,
+        // not guaranteed human players; never issue an undocumented command.
         send("vexbot team " + name + " settings retreatwhenlow on");
         send("vexbot team " + name + " massspawn " + amount + " randomgear "
                 + location.getBlockX() + " " + location.getBlockY() + " " + location.getBlockZ());
-    }
-
-    public void setMember(java.util.UUID owner, Player player, boolean add) {
-        if (!available()) return;
-        send("vexbot team " + team(owner) + (add ? " addplayer " : " removeplayer ")
-                + player.getName());
     }
 
     /** Give a specific fake player a physical route to a vehicle or gun station. */
