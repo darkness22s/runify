@@ -8,7 +8,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.client.item.TooltipType;
+import net.minecraft.item.tooltip.TooltipType;
 import net.minecraft.text.Text;
 import net.minecraft.util.hit.EntityHitResult;
 
@@ -78,8 +78,8 @@ public final class HitPreviewClient implements ClientModInitializer {
     }
 
     private static double applyArmor(LivingEntity target, double damage) {
-        double armor = target.getAttributeValue(EntityAttributes.GENERIC_ARMOR);
-        double toughness = target.getAttributeValue(EntityAttributes.GENERIC_ARMOR_TOUGHNESS);
+        double armor = target.getAttributeValue(EntityAttributes.ARMOR);
+        double toughness = target.getAttributeValue(EntityAttributes.ARMOR_TOUGHNESS);
         double effectiveArmor = Math.max(armor / 5.0, armor - damage / (2.0 + toughness / 4.0));
         effectiveArmor = Math.min(20.0, effectiveArmor);
         return damage * (1.0 - effectiveArmor / 25.0);
