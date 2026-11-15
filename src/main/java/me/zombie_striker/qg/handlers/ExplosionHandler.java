@@ -1,6 +1,7 @@
 package me.zombie_striker.qg.handlers;
 
 import me.zombie_striker.qg.hooks.protection.ProtectionHandler;
+import me.zombie_striker.qg.QAMain;
 import org.bukkit.Location;
 import org.bukkit.entity.Damageable;
 import org.bukkit.entity.Entity;
@@ -40,6 +41,10 @@ public class ExplosionHandler {
 	}
 
 	public static void handleAOEExplosion(Entity shooter, Location loc, double damage, double radius, double knockback) {
+		// Only exploding/splash weapons call this handler; ordinary bullet hits do not.
+		if (QAMain.getInstance() != null && QAMain.getInstance().getTerritories() != null)
+			QAMain.getInstance().getTerritories().destructiveImpact(
+					shooter instanceof org.bukkit.entity.Player ? (org.bukkit.entity.Player) shooter : null, loc);
 		for(Entity e : loc.getWorld().getNearbyEntities(loc, radius, radius, radius)) {
 			if(e instanceof Damageable) {
 				Damageable d = (Damageable) e;
