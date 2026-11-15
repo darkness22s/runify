@@ -263,7 +263,7 @@ public final class SiegeCannon implements Listener {
         battery.getWorld().playSound(battery, Sound.ENTITY_GENERIC_EXPLODE, 4.0f, 0.55f);
         Vector aim = player.getEyeLocation().getDirection().normalize();
         Location muzzle = battery.clone().add(0, 1.35, 0).add(aim.clone().multiply(3));
-        launch(player, muzzle, aim.multiply(1.65), multiplierAt(battery));
+        launch(player, muzzle, aim.multiply(3.4), multiplierAt(battery));
     }
 
     private void launch(Player shooter, Location pos, Vector initialVelocity, double upgrade) {
@@ -325,49 +325,85 @@ public final class SiegeCannon implements Listener {
     }
 
     /**
-     * Guard-controlled artillery coverage. Only a purchased VexBot garrison can
-     * request a salvo; shots originate from the existing real 3D cannon and use
-     * its ordinary ballistic simulation and reload state.
-     *
-     * VexBot does not expose a Paper API for driving plugin-specific vehicles;
-     * this is an artillery order adapter, not a fake claim of NPC vehicle AI.
+     * The physical VexBot gunner stands behind the cannon. This returns the
+     * actual operator station, not an invisible remote-fire abstraction.
      */
-    public boolean fireGuardSalvo(UUID civilizationOwner, Player commander, Location target) {
-        if (commander == null || target == null) return false;
-        Battery candidate = null;
-        double best = 55 * 55;
-        for (Battery battery : batteries.values()) {
-            if (!battery.id.startsWith(civilizationOwner.toString() + "-")) continue;
-            if (System.currentTimeMillis() < battery.readyAt) continue;
-            Location origin = battery.location();
-            if (origin == null || !origin.getWorld().equals(target.getWorld())) continue;
-            double distance = origin.distanceSquared(target);
-            if (distance < best) {
-                best = distance;
-                candidate = battery;
+    public Location operatorPosition(UUID civilizationOwner, Location from) {
+        if (from == null || from.getWorld() == null) return null;
+        Location nearest = null;
+        double distance = Double.MAX_VALUE;
+        for (Battery gun : batteries.values()) {
+            if (!gun.id.startsWith(civilizationOwner.toString() + "-")) continue;
+            Location loc = gun.location();
+            if (loc == null || loc.getWorld() != from.getWorld()) continue;
+            double yaw = Math.toRadians(gun.yaw);
+            Location rear = loc.clone().add(Math.sin(yaw) * 2.2, 0.1, -Math.cos(yaw) * 2.2);
+            double d = rear.distanceSquared(from);
+            if (d < distance) {
+                distance = d;
+                nearest = rear;
             }
         }
-        if (candidate == null) return false;
-        final Battery gun = candidate;
-        Location origin = gun.location();
-        // Solve a low-arc ballistic trajectory; direct aim would land short.
-        double dx = target.getX() - origin.getX();
-        double dz = target.getZ() - origin.getZ();
-        double horizontal = Math.hypot(dx, dz);
-        if (horizontal < 3 || horizontal > 70) return false;
-        final double speed = 1.65;
-        final double gravity = 0.082;
-        double dy = target.getY() - origin.getY() - 1.35;
-        double v2 = speed * speed;
-        double discriminant = v2 * v2 - gravity * (gravity * horizontal * horizontal + 2 * dy * v2);
-        if (discriminant < 0) return false;
-        double angle = Math.atan((v2 - Math.sqrt(discriminant)) / (gravity * horizontal));
-        Vector direction = new Vector(dx / horizontal * Math.cos(angle),
-                Math.sin(angle), dz / horizontal * Math.cos(angle));
-        gun.readyAt = System.currentTimeMillis() + effectiveReload(origin);
-        save();
+        return nearest;
+    }
+
+    /**
+     * Operated by a real VexBot fake Player physically present behind the
+     * gun. Traversal, ballistic elevation, line-of-fire and reload constraints
+     * are identical to those of human artillery. No player = no gunfire.
+     */
+    public boolean fireGuardSalvo(UUID civilizationOwner, Player operator, Location target) {
+        if (operator == null || target == null || !operator.isValid()
+                || operator.getWorld() != target.getWorld()) return false;
+        Location stand = operator.getLocation();
+        Battery choice = null;
+        Vector aim = null;
+        double best = Double.MAX_VALUE;
+        for (Battery gun : batteries.values()) {
+            if (!gun.id.startsWith(civilizationOwner.toString() + "-")) continue;
+            if (System.currentTimeMillis() < gun.readyAt) continue;
+            Location loc = gun.location();
+            if (loc == null || loc.getWorld() != stand.getWorld()) continue;
+            double yawRad = Math.toRadians(gun.yaw);
+            Location rear = loc.clone().add(Math.sin(yawRad) * 2.2, 0.1, -Math.cos(yawRad) * 2.2);
+            double crewDistance = rear.distanceSquared(stand);
+            if (crewDistance > 36) continue;
+
+            double dx = target.getX() - loc.getX(), dz = target.getZ() - loc.getZ();
+            double range = Math.hypot(dx, dz);
+            if (range < 10 || range > 115) continue;
+            double requiredYaw = Math.toDegrees(Math.atan2(-dx, dz));
+            double traverse = Math.abs(((requiredYaw - gun.yaw + 540) % 360) - 180);
+            if (traverse > 28) continue;
+
+            double speed = 3.4;
+            double gravity = 0.082;
+            double height = target.getY() - loc.getY() - 1.35;
+            double v2 = speed * speed;
+            double discriminant = v2 * v2 - gravity * (gravity * range * range + 2 * height * v2);
+            if (discriminant <= 0) continue;
+            double elevation = Math.atan((v2 - Math.sqrt(discriminant)) / (gravity * range));
+            if (elevation < Math.toRadians(8) || elevation > Math.toRadians(45)) continue;
+            if (crewDistance < best) {
+                best = crewDistance;
+                choice = gun;
+                aim = new Vector(dx / range * Math.cos(elevation),
+                        Math.sin(elevation), dz / range * Math.cos(elevation));
+            }
+        }
+        if (choice == null || aim == null) return false;
+        final Battery battery = choice;
+        final Location origin = battery.location();
+        final Vector direction = aim.clone();
+        final double upgrade = multiplierAt(origin);
+        synchronized (battery) {
+            if (System.currentTimeMillis() < battery.readyAt) return false;
+            battery.readyAt = System.currentTimeMillis() + effectiveReload(origin);
+            save();
+        }
+        origin.getWorld().playSound(origin, Sound.ENTITY_GENERIC_EXPLODE, 4, .6f);
         Location muzzle = origin.clone().add(0, 1.35, 0).add(direction.clone().multiply(3));
-        FoliaRunnable.runRegionTask(plugin, muzzle, () -> launch(commander, muzzle, direction.multiply(1.65), multiplierAt(origin)));
+        launch(operator, muzzle, direction.multiply(3.4), upgrade);
         return true;
     }
 
