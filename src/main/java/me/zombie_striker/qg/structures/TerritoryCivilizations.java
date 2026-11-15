@@ -552,9 +552,11 @@ public final class TerritoryCivilizations implements Listener {
             player.sendMessage(ChatColor.RED+"Choose another online player without a civilization.");return;
         }
         if(c.allies.remove(friend.getUniqueId())){
+            guards.setMember(c.owner,friend,false);
             player.sendMessage(ChatColor.YELLOW+"Removed ally "+friend.getName());
         } else {
             c.allies.add(friend.getUniqueId());
+            guards.setMember(c.owner,friend,true);
             player.sendMessage(ChatColor.GREEN+"Added ally "+friend.getName());
         }
         save();
