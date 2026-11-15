@@ -284,30 +284,15 @@ public final class VexbotVehicleController implements Listener {
     }
 
     private Location nearestEnemy(UUID owner, Location botLocation) {
+        // Guards do not attack unrelated bystanders on sight. Only a declared
+        // intruder or the owner-designated enemy activates tank artillery.
         UUID focus = attackTargets.get(owner);
-        if (focus != null) {
-            Track track = locations.get(focus);
-            if (track != null && System.currentTimeMillis() - track.at <= 30000) {
-                Location location = track.location();
-                if (location != null && location.getWorld().equals(botLocation.getWorld()))
-                    return location;
-            }
-        }
-        double nearest = 140 * 140;
-        Location selected = null;
-        for (Map.Entry<UUID, Track> e : locations.entrySet()) {
-            if (territories.isFriendly(owner, e.getKey())) continue;
-            Track t = e.getValue();
-            if (System.currentTimeMillis() - t.at > 30000) continue;
-            Location at = t.location();
-            if (at == null || !at.getWorld().equals(botLocation.getWorld())) continue;
-            double distance = botLocation.distanceSquared(at);
-            if (distance < nearest) {
-                nearest = distance;
-                selected = at;
-            }
-        }
-        return selected;
+        if (focus == null || territories.isFriendly(owner, focus)) return null;
+        Track track = locations.get(focus);
+        if (track == null || System.currentTimeMillis() - track.at > 30000) return null;
+        Location location = track.location();
+        return location != null && location.getWorld().equals(botLocation.getWorld())
+                ? location : null;
     }
 
     private void tick(Player bot, Assignment assignment) {
