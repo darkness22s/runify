@@ -179,7 +179,8 @@ public final class SiegeTankManager implements Listener {
         if (!bot.isOnline() || !bot.isValid()) return false;
         Location botPosition = bot.getLocation();
         Tank match = null;
-        double best = 100;
+        // Force the VexBot to walk up to the vehicle instead of mounting from ten blocks away.
+        double best = 16;
         for (Tank tank : tanks.values()) {
             if (!owner.equals(tank.civilizationOwner)) continue;
             Location position = tank.lastLocation;
