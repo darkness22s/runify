@@ -60,6 +60,7 @@ public final class TerritoryCivilizations implements Listener {
     private final Map<UUID,Integer> wallets = new ConcurrentHashMap<>();
     private final Map<UUID,UUID> currentlyInside = new ConcurrentHashMap<>();
     private final Map<String,War> wars = new ConcurrentHashMap<>();
+    private final Map<String,Long> peaceUntil = new ConcurrentHashMap<>();
     private final Map<String,Long> alerts = new ConcurrentHashMap<>();
     private final Map<String,Long> killPayouts = new ConcurrentHashMap<>();
     private final Set<UUID> creating = ConcurrentHashMap.newKeySet();
@@ -437,6 +438,13 @@ public final class TerritoryCivilizations implements Listener {
                         p.sendMessage(ChatColor.RED+"Expansion would overlap another civilization.");return;
                     }
                 }
+                WorldBorder wb=Bukkit.getWorld(c.world).getWorldBorder();
+                for(int dx:new int[]{-c.radius-128,c.radius+128})
+                    for(int dz:new int[]{-c.radius-128,c.radius+128})
+                        if(!wb.isInside(new Location(Bukkit.getWorld(c.world),
+                                c.centerX+dx,80,c.centerZ+dz))){
+                            p.sendMessage(ChatColor.RED+"Expansion exceeds world border.");return;
+                        }
                 if(pay(p,c,450)){c.radius+=128;save();p.sendMessage(ChatColor.GREEN+"Territory radius "+c.radius);}
                 break;
             case "outpost":
@@ -582,6 +590,8 @@ public final class TerritoryCivilizations implements Listener {
         UUID attacker=own==null?invader.getUniqueId():own.owner;
         if(attacker.equals(territory.owner))return;
         String key=warKey(attacker,territory.owner);
+        Long peace=peaceUntil.get(key);
+        if(peace!=null&&System.currentTimeMillis()<peace)return;
         War war=wars.computeIfAbsent(key,k->new War(attacker,territory.owner));
         if(territory.hiredGuards>0&&guards.available()) {
             guards.attack(territory.owner,invader);
@@ -693,6 +703,14 @@ public final class TerritoryCivilizations implements Listener {
             }
     }
 
+    private boolean hasEnemyInside(Civ c) {
+        for(Map.Entry<UUID,UUID> entry:currentlyInside.entrySet()) {
+            if(c.owner.equals(entry.getValue())&&!c.member(entry.getKey())
+                    &&Bukkit.getPlayer(entry.getKey())!=null)return true;
+        }
+        return false;
+    }
+
     private void commandHorn(Player leader,Civ c,String order) {
         if(!c.member(leader.getUniqueId()))return;
         if("attack".equals(order)) {
@@ -709,11 +727,17 @@ public final class TerritoryCivilizations implements Listener {
         }
         if("retreat".equals(order)) {
             for(War war:new ArrayList<>(wars.values())) {
-                if(c.owner.equals(war.attacker)) {
-                    wars.remove(warKey(war.attacker,war.defender));
-                    Civ defender=civilizations.get(war.defender);
-                    if(defender!=null)showWarAlert(defender,leader.getName(),
-                            "ENEMY RETREAT", "retreat-"+warKey(war.attacker,war.defender));
+                if(c.owner.equals(war.attacker)||c.owner.equals(war.defender)) {
+                    String key=warKey(war.attacker,war.defender);
+                    if(!wars.remove(key,war))continue;
+                    peaceUntil.put(key,System.currentTimeMillis()+240000);
+                    UUID winner=c.owner.equals(war.attacker)?war.defender:war.attacker;
+                    Civ rival=civilizations.get(winner);
+                    if(rival!=null) {
+                        award(rival.owner,200);
+                        rival.treasury+=50;save();
+                        showWarAlert(rival,leader.getName(),"ENEMY RETREAT (+200 COINS)","retreat-"+key);
+                    }
                 }
             }
             Location base=c.centerLocation();
@@ -728,7 +752,13 @@ public final class TerritoryCivilizations implements Listener {
                     continue;
                 boolean earned=c.owner.equals(war.attacker)?war.attackKills>0:war.defenseKills>0;
                 if(!earned){leader.sendMessage(ChatColor.RED+"Your side must win an elimination first.");continue;}
-                if(wars.remove(warKey(war.attacker,war.defender),war)){
+                if(c.owner.equals(war.defender) && hasEnemyInside(c)) {
+                    leader.sendMessage(ChatColor.RED+"Clear invading players from your territory before declaring victory.");
+                    continue;
+                }
+                String key=warKey(war.attacker,war.defender);
+                if(wars.remove(key,war)){
+                    peaceUntil.put(key,System.currentTimeMillis()+240000);
                     award(leader.getUniqueId(),350);
                     c.treasury+=100;save();
                     leader.sendTitle(ChatColor.GOLD+"VICTORY!",ChatColor.GREEN+"+350 coins",10,65,15);
