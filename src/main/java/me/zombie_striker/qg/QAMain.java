@@ -524,7 +524,7 @@ public class QAMain extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (civilizationManager != null) civilizationManager.save();
+        if (civilizationManager != null) civilizationManager.shutdown();
         if (siegeCannons != null) siegeCannons.save();
         if (siegeTanks != null) siegeTanks.shutdown();
         for (Entry<MaterialStorage, CustomBaseObject> misc : miscRegister.entrySet()) {
