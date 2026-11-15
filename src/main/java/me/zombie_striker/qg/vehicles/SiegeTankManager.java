@@ -161,8 +161,7 @@ public final class SiegeTankManager implements Listener {
         Location selected = null;
         double best = Double.MAX_VALUE;
         for (Tank tank : tanks.values()) {
-            if (!owner.toString().equals(tank.horse.getPersistentDataContainer()
-                    .get(civilizationKey, PersistentDataType.STRING))) continue;
+            if (!owner.equals(tank.civilizationOwner)) continue;
             Location location = tank.lastLocation;
             if (location == null || !location.getWorld().equals(near.getWorld())) continue;
             double distance = location.distanceSquared(near);
@@ -182,8 +181,7 @@ public final class SiegeTankManager implements Listener {
         Tank match = null;
         double best = 100;
         for (Tank tank : tanks.values()) {
-            if (!owner.toString().equals(tank.horse.getPersistentDataContainer()
-                    .get(civilizationKey, PersistentDataType.STRING))) continue;
+            if (!owner.equals(tank.civilizationOwner)) continue;
             Location position = tank.lastLocation;
             if (position == null || position.getWorld() != bot.getWorld()) continue;
             double d = botPosition.distanceSquared(position);
@@ -472,6 +470,7 @@ public final class SiegeTankManager implements Listener {
     /** A scaled Minecraft block is a genuinely 3D mesh part, not a 2D item texture. */
     private final class Tank {
         private final Horse horse;
+        private final UUID civilizationOwner;
         private final List<Part> parts = new ArrayList<>();
         private final List<ArmorStand> plates = new ArrayList<>();
         private FoliaRunnable tickTask;
@@ -484,6 +483,8 @@ public final class SiegeTankManager implements Listener {
 
         private Tank(Horse horse) {
             this.horse = horse;
+            String owner = horse.getPersistentDataContainer().get(civilizationKey, PersistentDataType.STRING);
+            this.civilizationOwner = owner == null ? null : UUID.fromString(owner);
             this.lastLocation = horse.getLocation().clone();
             Long savedReload = horse.getPersistentDataContainer().get(reloadKey, PersistentDataType.LONG);
             this.readyAt = savedReload == null ? 0L : savedReload;
@@ -588,6 +589,15 @@ public final class SiegeTankManager implements Listener {
          * actually rides the Horse; the tank chassis drives, turns its turret,
          * checks terrain and fires the same 3x-RPG projectile used by humans.
          */
+        private boolean canDrive(Location here, Vector heading) {
+            Location probe = here.clone().add(heading.clone().multiply(2.6));
+            Material foot = probe.getBlock().getType();
+            Material head = probe.clone().add(0, 1, 0).getBlock().getType();
+            Material ground = probe.clone().add(0, -1, 0).getBlock().getType();
+            return !foot.isSolid() && !head.isSolid() && ground.isSolid()
+                    && foot != Material.LAVA && foot != Material.WATER;
+        }
+
         private void driveGuard() {
             if (guardPilot == null || guardTarget == null) return;
             Player bot = Bukkit.getPlayer(guardPilot);
@@ -608,21 +618,23 @@ public final class SiegeTankManager implements Listener {
             guardTurretYaw = yaw;
             if (distance > 17) {
                 Vector steering = new Vector(offset.getX(), 0, offset.getZ()).normalize();
-                Vector ahead = steering.clone().multiply(2.6);
-                Location probe = here.clone().add(ahead);
-                // Driveable open terrain only; stop before walls, water, lava
-                // and cliffs rather than teleport the vehicle through terrain.
-                Material foot = probe.getBlock().getType();
-                Material head = probe.clone().add(0, 1, 0).getBlock().getType();
-                Material ground = probe.clone().add(0, -1, 0).getBlock().getType();
-                if ((!foot.isSolid() && !head.isSolid()) && ground.isSolid()
-                        && foot != Material.LAVA && foot != Material.WATER) {
-                    horse.setRotation(yaw, 0);
-                    horse.setVelocity(new Vector(steering.getX() * 0.19,
-                            horse.getVelocity().getY(), steering.getZ() * 0.19));
+                // Try the direct route, then alternate left/right corridors. A
+                // blocked tank does not tunnel through walls or drive off cliffs.
+                Vector chosen = null;
+                for (double offsetYaw : new double[]{0, -.65, .65, -1.15, 1.15}) {
+                    Vector candidate = steering.clone().rotateAroundY(offsetYaw);
+                    if (canDrive(here, candidate)) {
+                        chosen = candidate;
+                        break;
+                    }
+                }
+                if (chosen != null) {
+                    float drivingYaw = (float) Math.toDegrees(Math.atan2(
+                            -chosen.getX(), chosen.getZ()));
+                    horse.setRotation(drivingYaw, 0);
+                    horse.setVelocity(new Vector(chosen.getX() * 0.20,
+                            horse.getVelocity().getY(), chosen.getZ() * 0.20));
                 } else {
-                    // Steering correction on an obstruction; does not force
-                    // the horse into unsupported terrain.
                     horse.setVelocity(new Vector(0, horse.getVelocity().getY(), 0));
                 }
             } else {
