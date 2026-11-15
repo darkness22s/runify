@@ -260,30 +260,65 @@ A castle's floating objective name shows its integrity. If blocks are
 destroyed, use `/qa civ damage` to find the most recently hit position.
 For repairs, stand within 48 blocks of a damaged outpost.
 
-### VexBot Paper integration
+### VexBot Paper 1.21.11 – actual vehicle crews
 
-Runify optionally uses the **official VexBot Paper plugin** through its
-documented `/vexbot team` commands. It does **not** compile against
-VexBot's Fabric-only extension API. When VexBot is installed, purchasing
-guards creates a dedicated bot team and stations each purchased pair at a fort.
-An attack horn sends a team attack order; a retreat/victory horn returns
-them to hold the capital; intrusions trigger defensive guard orders.
-Artillery coverage is coordinated with a garrison: if a purchased guard
-team is active, a nearby existing cannon can fire a ballistic defensive
-salvo and must complete its normal reload afterward.
+Runify's server plugin now builds against **Spigot API 1.21.11, Java 21**.
+The optional official VexBot **Paper** plugin supplies the fake-player guards.
+Runify uses documented VexBot team/spawn/navigation commands and controls
+its *own* physical tank/cannon entities; no nonexistent VexBot Fabric APIs
+or undocumented tank-driving methods are assumed.
 
-**Compatibility warning:** Official VexBot Paper 3.x needs a matching
-Minecraft **1.21.11+ Paper build** and its required Java runtime.
-Runify's current Maven dependency still targets **Spigot API 1.20.6**;
-compile success alone does not establish in-game compatibility with VexBot.
-Use the vendor's matching Paper plugin on a test server first.
+When purchasing **two guards for 250 coins**, Runify creates a bot squad and
+places a real 3D tank at the chosen fortress. New VexBot fake-player entities
+near that fortress are recruited as a **tank driver** and a **cannon operator**.
+The driver is mounted into an actual tank and the vehicle navigates toward a
+target by adjusting its horse chassis velocity, avoiding obstructed ground.
+The real tank turret aims, charges a shell, fires a 3×-RPG explosion, and
+waits its full 35-second reload. On a retreat order it returns home.
+Cannoneers are ordered to walk to the gun's physical operator station; only
+after arriving within the permitted distance can they use that cannon,
+subject to 28° traverse, 8°–45° elevation, ballistic trajectory and
+persistent reload.
 
-**Not supported by VexBot's documented Paper command interface:** native
-mounting/driving of Runify tanks or actual fake-player interaction with
-Runify's cannon hitboxes. Guard-triggered artillery is operated by Runify
-on behalf of the VexBot garrison; it is not a claim that VexBot has a vehicle
-driver API. Tank integration needs a separate vehicle-control interface and
-runtime playtesting.
+If VexBot's Paper version doesn't expose a purchased guard as a Bukkit
+Player automatically, bind an online VexBot fake-player explicitly:
+
+```text
+/qa civ guard list
+/qa civ guard bind <VexBotPlayerName> tank
+/qa civ guard bind <VexBotPlayerName> cannon
+/qa civ guard unbind <VexBotPlayerName>
+```
+
+The owner chooses the rival with `/qa civ target <online-owner>`, then
+blows their configured attack horn. Invasions also alert the defending
+crew. Retreat/victory horns end attack orders, and the crew returns to
+their garrison. Bot crews and their home stations persist in
+`plugins/QualityArmory/vexbot-vehicle-crews.yml`.
+
+**Requirements and verification:** Use the VexBot Paper build that matches
+Minecraft **1.21.11**, on a Java 21 server. The code compiles against
+the declared 1.21.11 server dependency. Actual compatibility, pathfinding
+around complicated terrain, fake-player mounting, VexBot command registration,
+and tactical balance still require an **in-game Paper + VexBot playtest**.
+The road navigation is obstacle-aware steering, not a full long-distance
+pathfinding engine; tanks stop when no safe route is found rather than
+teleporting through walls.
+
+### Minecraft 1.21.11 distribution
+
+The Paper plugin and optional Fabric hit-preview client are independently
+built by GitHub Actions. The server is strictly targeting **1.21.11**:
+`pom.xml` uses Spigot `1.21.11-R0.1-SNAPSHOT`, compiler release 21,
+and `plugin.yml` specifies API version `1.21.11`. The optional Fabric
+module is configured for Minecraft 1.21.11 and current Yarn mappings; its
+Gradle build is checked separately in CI.
+
+### Standalone tank
+
+`/qa tank` deploys a human-ridable 3D vehicle with heavy armor and a
+slow-reloading gun. Ride with WASD, aim with your view, press F to fire;
+VexBot-controlled tanks use the same physical tank and shell mechanics.
 
 ### Standalone cannon
 
