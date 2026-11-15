@@ -326,6 +326,12 @@ public final class VexbotVehicleController implements Listener {
                         assignment.lastOrder = System.currentTimeMillis();
                         bridge.gotoBot(bot, tank);
                     }
+                } else if (bot.getVehicle() != null
+                        && System.currentTimeMillis() - assignment.lastOrder > 16000) {
+                    // Clear VexBot foot navigation once the bot is seated;
+                    // otherwise its walking task may fight the tank autopilot.
+                    assignment.lastOrder = System.currentTimeMillis();
+                    bridge.stopBot(bot);
                 }
             } else {
                 Location home = withdrawing || assignment.station == null ? capital : assignment.station;
