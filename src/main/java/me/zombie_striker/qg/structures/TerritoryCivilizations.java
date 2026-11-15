@@ -454,12 +454,14 @@ public final class TerritoryCivilizations implements Listener {
             case "guards":
                 if(c.hiredGuards>=24){p.sendMessage(ChatColor.YELLOW+"Maximum guards reached.");return;}
                 if(!guards.available()){p.sendMessage(ChatColor.RED+"Install compatible VexBot Paper first (1.21.11+).");return;}
-                Location loc=c.centerLocation();
-                if(loc==null){p.sendMessage(ChatColor.RED+"Capital world unavailable.");return;}
+                Site station=c.sites.get((c.hiredGuards/2)%c.sites.size());
+                World w=Bukkit.getWorld(c.world);
+                if(w==null){p.sendMessage(ChatColor.RED+"Civilization world unavailable.");return;}
+                Location loc=new Location(w,station.x+2,station.y+1,station.z-2);
                 if(pay(p,c,250)){
                     c.hiredGuards+=2;save();
                     guards.provision(c.owner,2,loc);
-                    p.sendMessage(ChatColor.GREEN+"Purchased 2 VexBot guards for "+Bukkit.getOfflinePlayer(c.owner).getName());
+                    p.sendMessage(ChatColor.GREEN+"Stationed 2 VexBot guards at "+station.name+".");
                 }
                 break;
             case "repair":
