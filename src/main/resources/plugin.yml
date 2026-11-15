@@ -26,9 +26,13 @@ permissions:
       qualityarmory.debugmessages: true
       qualityarmory.outpost: true
       qualityarmory.civ: true
+      qualityarmory.civ.manage: true
       qualityarmory.cannon: true
   qualityarmory.cannon:
     description: Deploy a stand-alone interactive 3D siege cannon
+    default: op
+  qualityarmory.civ.manage:
+    description: Assign ownership of civilizations to other online players
     default: op
   qualityarmory.civ:
     description: Creates and defends a large multi-district civilization with siege cannons
@@ -42,7 +46,7 @@ permissions:
       qualityarmory.craft: true
       qualityarmory.shop: true
       qualityarmory.usegun: true
-softdepend: [Vault, PlaceholderAPI, ChestShop, Parties, WorldGuard, ViaVersion, ViaRewind, LightAPI, Citizens, ProtocolLib, SunLight-Core, ItemBridge, Sentinel, Spartan, Towny, Residence, Matrix, QuickShop, Vulcan, CoreProtect, Mimic, GriefPrevention, Kingdoms, NBTAPI, MythicMobs]
+softdepend: [VexBot, Vault, PlaceholderAPI, ChestShop, Parties, WorldGuard, ViaVersion, ViaRewind, LightAPI, Citizens, ProtocolLib, SunLight-Core, ItemBridge, Sentinel, Spartan, Towny, Residence, Matrix, QuickShop, Vulcan, CoreProtect, Mimic, GriefPrevention, Kingdoms, NBTAPI, MythicMobs]
 authors:
   - Zombie_Striker
   - Lorenzo0111
