@@ -101,9 +101,9 @@ public final class SiegeTankManager implements Listener {
             spawned.getInventory().setSaddle(new ItemStack(Material.SADDLE));
             spawned.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, true, false));
             double maxHealth = Math.max(40.0, plugin.getConfig().getDouble("tank.health", 400.0));
-            spawned.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(maxHealth);
+            spawned.getAttribute(Attribute.MAX_HEALTH).setBaseValue(maxHealth);
             spawned.setHealth(maxHealth);
-            spawned.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(
+            spawned.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(
                     Math.max(0.06, Math.min(0.40, plugin.getConfig().getDouble("tank.movementSpeed", 0.20))));
             spawned.setJumpStrength(0.12);
             spawned.setAI(false);
@@ -145,7 +145,7 @@ public final class SiegeTankManager implements Listener {
                                 : seconds > 0 ? "RELOADING: " + seconds + "s" : "READY (F TO FIRE)";
                         ActionBar.sendActionBar(player, ChatColor.DARK_GREEN + "TANK "
                                 + ChatColor.GREEN + (int) Math.ceil(horse.getHealth()) + "/"
-                                + (int) horse.getAttribute(Attribute.GENERIC_MAX_HEALTH).getBaseValue()
+                                + (int) horse.getAttribute(Attribute.MAX_HEALTH).getBaseValue()
                                 + " HP  " + ChatColor.GOLD + status);
                     }
                 }
