@@ -19,8 +19,13 @@ public final class VexbotGuardBridge {
     }
 
     public boolean available() {
-        return Bukkit.getPluginCommand("vexbot") != null
-                && Bukkit.getPluginManager().isPluginEnabled("VexBot");
+        // Paper plugins may register their Brigadier commands through lifecycle
+        // events rather than Bukkit's PluginCommand registry.
+        for (org.bukkit.plugin.Plugin dependency : Bukkit.getPluginManager().getPlugins()) {
+            if (dependency.isEnabled() && dependency.getName().toLowerCase(java.util.Locale.ROOT)
+                    .contains("vexbot")) return true;
+        }
+        return false;
     }
 
     private void send(String command) {
