@@ -263,16 +263,16 @@ public final class SiegeCannon implements Listener {
         battery.getWorld().playSound(battery, Sound.ENTITY_GENERIC_EXPLODE, 4.0f, 0.55f);
         Vector aim = player.getEyeLocation().getDirection().normalize();
         Location muzzle = battery.clone().add(0, 1.35, 0).add(aim.clone().multiply(3));
-        launch(player, muzzle, aim.multiply(1.65));
+        launch(player, muzzle, aim.multiply(1.65), multiplierAt(battery));
     }
 
-    private void launch(Player shooter, Location pos, Vector initialVelocity) {
+    private void launch(Player shooter, Location pos, Vector initialVelocity, double upgrade) {
         // Region-affine step: each new step is scheduled at the new shell location.
         // This avoids a repeating task accessing arbitrary distant Folia chunks.
-        step(shooter, pos.clone(), initialVelocity, 0);
+        step(shooter, pos.clone(), initialVelocity, 0, upgrade);
     }
 
-    private void step(Player shooter, Location position, Vector velocity, int ticks) {
+    private void step(Player shooter, Location position, Vector velocity, int ticks, double upgrade) {
         if (!plugin.isEnabled() || ticks >= MAX_FLIGHT_TICKS
                 || position.getY() < position.getWorld().getMinHeight()
                 || position.getY() > position.getWorld().getMaxHeight()) return;
@@ -284,7 +284,7 @@ public final class SiegeCannon implements Listener {
                 next.add(move);
                 Block block = next.getBlock();
                 if (block.getType().isSolid() && !block.isPassable()) {
-                    detonate(shooter, next);
+                    detonate(shooter, next, upgrade);
                     return;
                 }
                 next.getWorld().spawnParticle(Particle.SMOKE, next, 3, 0.12, 0.12, 0.12, 0);
@@ -293,27 +293,30 @@ public final class SiegeCannon implements Listener {
             if (!next.getWorld().getNearbyEntities(next, 1.0, 1.0, 1.0,
                     e -> e instanceof org.bukkit.entity.LivingEntity
                             && !e.getUniqueId().equals(shooter.getUniqueId())).isEmpty()) {
-                detonate(shooter, next);
+                detonate(shooter, next, upgrade);
                 return;
             }
             Vector falling = velocity.clone().multiply(0.991).setY(velocity.getY() - 0.082);
-            step(shooter, next, falling, ticks + 1);
+            step(shooter, next, falling, ticks + 1, upgrade);
         }, 1);
     }
 
-    private void detonate(Player shooter, Location point) {
+    private void detonate(Player shooter, Location point, double upgrade) {
         if (!ProtectionHandler.canExplode(point)) {
             point.getWorld().spawnParticle(Particle.SMOKE, point, 28, 1, 1, 1, 0.02);
             return;
         }
-        double upgrade = plugin.getTerritories() == null ? 1.0
-                : plugin.getTerritories().cannonMultiplierAt(point);
         int power = Math.min(32, Math.max(2, (int) Math.ceil(QAMain.rpgExplosionPower * 2 * upgrade)));
         double damage = 2 * currentRpgDamage() * upgrade;
         ExplosionHandler.handleExplosion(point, power, power);
         ExplosionHandler.handleAOEExplosion(shooter, point, damage, power * 1.6, 1.4);
         point.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, point, 1);
         point.getWorld().playSound(point, Sound.ENTITY_GENERIC_EXPLODE, 6, 0.65f);
+    }
+
+    private double multiplierAt(Location location) {
+        return plugin.getTerritories() == null ? 1.0
+                : plugin.getTerritories().cannonMultiplierAt(location);
     }
 
     private long effectiveReload(Location location) {
@@ -354,7 +357,7 @@ public final class SiegeCannon implements Listener {
         gun.readyAt = System.currentTimeMillis() + effectiveReload(origin);
         save();
         Location muzzle = origin.clone().add(0, 1.35, 0).add(direction.clone().multiply(3));
-        FoliaRunnable.runRegionTask(plugin, muzzle, () -> launch(commander, muzzle, direction.multiply(1.65)));
+        FoliaRunnable.runRegionTask(plugin, muzzle, () -> launch(commander, muzzle, direction.multiply(1.65), multiplierAt(origin)));
         return true;
     }
 
