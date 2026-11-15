@@ -711,7 +711,8 @@ public final class TerritoryCivilizations implements Listener {
         War existing=wars.putIfAbsent(key,new War(attacker,territory.owner));
         if(existing==null)save();
         if(territory.hiredGuards>0&&guards.available()) {
-            guards.attack(territory.owner,invader);
+            // Vehicle crews receive individual combat targets. An overarching
+            // VexBot team goto order would drag pilots out of their tanks.
             vehicleGuards.attack(territory.owner,invader.getUniqueId());
         }
         showWarAlert(territory,invader.getName(),reason,key);
@@ -844,7 +845,6 @@ public final class TerritoryCivilizations implements Listener {
             Player target=Bukkit.getPlayer(enemy.owner);
             if(target==null){leader.sendMessage(ChatColor.RED+"Enemy commander must be online.");return;}
             declareWar(leader,enemy,"ATTACK HORN");
-            if(c.hiredGuards>0)guards.attack(c.owner,target);
             vehicleGuards.attack(c.owner,target.getUniqueId());
             leader.sendMessage(ChatColor.RED+"ATTACK order issued to "+c.hiredGuards+" VexBot guards.");
             return;
@@ -866,7 +866,6 @@ public final class TerritoryCivilizations implements Listener {
                 }
             }
             Location base=c.centerLocation();
-            if(base!=null&&c.hiredGuards>0)guards.retreat(c.owner,base);
             vehicleGuards.retreat(c.owner);
             leader.sendMessage(ChatColor.YELLOW+"RETREAT! Your guards are returning to the capital.");
             return;
@@ -888,8 +887,6 @@ public final class TerritoryCivilizations implements Listener {
                     award(leader.getUniqueId(),350);
                     c.treasury+=100;save();
                     leader.sendTitle(ChatColor.GOLD+"VICTORY!",ChatColor.GREEN+"+350 coins",10,65,15);
-                    if(c.hiredGuards>0&&c.centerLocation()!=null)
-                        guards.retreat(c.owner,c.centerLocation());
                     vehicleGuards.retreat(c.owner);
                     return;
                 }
