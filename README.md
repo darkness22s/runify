@@ -164,47 +164,129 @@ See the [LICENSE](LICENSE) file for details.
 - [CI/CD Builds](https://ci.codemc.io/job/ZombieStriker/job/QualityArmory/)
 - [Maven Repository](https://repo.codemc.io/repository/maven-public/)
 
-## Crownlands civilization and siege cannons (Minecraft 1.20.6+)
+## Crownlands — player-owned territory warfare (Paper)
 
-Run `/qa civ` as a player with `qualityarmory.civ` permission to generate a
-large **185 × 185** dedicated siege playground at your feet. **Back up the world:**
-construction clears and replaces blocks inside nine structures and levels roads.
-Prefer a fresh flat battle world. Protected blocks and claimed regions are skipped.
+**The compact nine-district prototype has been replaced.** Each civilization owns a
+circular **territory** with a player-assigned owner, a central fortress and
+**five scattered 33×33 multi-storey outposts**. Outposts are placed hundreds
+of blocks apart inside the selected radius rather than clustered around the
+player. Further outposts (up to 15) can be bought later.
 
-Nearby teammates can use the status, raid and repair commands for co-op defense.
-Floating labels above each lodestone show the current district integrity.
+**Danger:** Fort generation overwrites terrain. Back up your world and use a
+dedicated, unclaimed battle map. The owner must be online at creation time.
+A civilization will not be placed over another civilization's claim.
 
-The generated civilization includes a 38-block **Crown Citadel**, four tall
-**Sentinel Outposts**, the **Golden Granary**, **Iron Foundry**,
-**Sanctuary Clinic** and **Azure Waterworks**. Illuminated roads connect the
-districts. The citadel and four outposts each receive a detailed, resource-pack-free
-3D siege cannon assembled from Minecraft block-display entities.
+### Create a civilization
 
-Players defend nine separate **lodestone objectives** (100 integrity each).
-Raiders periodically pressure the objectives when summoned; failing to eliminate
-attackers or losing a core block ruins a district until it is repaired.
-The tracked objective state persists through server restarts.
+```text
+/qa civ                                    # claim a 512-block radius for yourself
+/qa civ create Alex 768                    # admin assigns Alex a 768-block radius
+/qa civ status                             # owner, radius, fortress HP, upgrades
+/qa civ locate                             # coordinates for every outpost
+/qa civ damage                             # damaged forts + last damage coordinates
+/qa civ ally Jordan                        # add/remove an allied teammate
+/qa civ target Alex                         # select a rival civilization to attack
+```
 
-| Command | Purpose |
-| --- | --- |
-| `/qa civ` | Build your nine-district civilization (one per player) |
-| `/qa cannon` | Deploy one independent 3D cannon at your current location |
-| `/qa civ status` | Display each district's integrity and coordinates |
-| `/qa civ locate` | Locate your capital and other districts |
-| `/qa civ raid` | Start a multi-front hostile raid (four-minute cooldown) |
-| `/qa civ repair` | Near an objective, spend 12 iron ingots to restore 40 integrity |
-| `/qa outpost` | Existing independent siege outpost (unchanged) |
+`qualityarmory.civ` permits ordinary civilization commands (by default OP).
+`qualityarmory.civ.manage` allows assigning land to **other** online owners.
+Territory radius is configurable from **192 to 1536 blocks** when created,
+and can be expanded with coins. Players in your ally list can access and
+defend your claim without triggering a border war.
 
-**Cannon operation:** Stand near the cannon, **sneak and right-click** its
-3D model, face within **28°** of the barrel's preset direction, and elevate
-your view **8°–45°** above horizontal. Cannonballs follow gravity, so targets
-need range estimation. Each cannon requires **30 seconds** to reload (persisted
-through restarts). A hit deals **2× the registered RPG's damage** and generates
-**2× its configurable explosion power** (capped at 32). If no RPG is loaded,
-`cannon.fallbackRpgDamage` provides a configurable reference value.
-World protection hooks and normal server explosion settings still apply.
+### War declarations and goat horns
 
-**Compatibility:** Block displays, text displays and interaction hitboxes
-require modern server APIs (1.20.6 recommended). The build uses the
-existing Folia-aware scheduler for distributed structure construction.
-The existing `/qa outpost` and RPG command functionality remain available.
+A non-allied player crossing into a territory automatically starts a war.
+Members of the attacked team get a large, centered
+**WAR DECLARED!** screen alert and a horn sound, with the intruder's name.
+Impacts from **RPGs, artillery, grenades and other AOE explosives**
+also trigger alerts. **Ordinary bullets do not**.
+War alerts have a spam-prevention cooldown.
+
+The owner assigns **three distinct goat horn instrument types** by holding
+the instrument and using:
+
+```text
+/qa civ horn attack
+/qa civ horn retreat
+/qa civ horn victory
+```
+
+When a bound horn is played, Runify interprets it as the owner's order:
+
+- **Attack**: declares war on the selected rival and tells recruited VexBot
+  guards to move to and attack the rival leader (if online).
+- **Retreat**: orders VexBot guards back to the capital, ends the current
+  engagement and awards 200 coins to the opposing civilization owner.
+- **Victory**: after the team has killed at least one enemy player in its
+  current war, ends that war, awards **350 coins to the horn blower**
+  and **100 to the civilization treasury**. Defenders must also clear
+  hostile players from their border. A four-minute truce prevents instant
+  repeat claims.
+
+A successful kill of an enemy player involved in a territorial battle pays
+**100 coins to the killer**, plus **25 treasury coins** to their civilization
+when applicable. Repeated kills of the same victim cannot be farmed every
+second: the same killer-victim pair has a **90-second payout cooldown**.
+
+### Coin economy and persistent upgrades
+
+```text
+/qa civ balance
+/qa civ shop
+/qa civ upgrade cannon
+/qa civ upgrade weapon
+/qa civ upgrade outpost
+/qa civ upgrade radius
+/qa civ upgrade guards
+/qa civ upgrade repair
+```
+
+| Upgrade | Cost | Effect |
+| --- | ---: | --- |
+| Cannon (levels 1–5) | 300 | Each level +25% cannon shell power, -3 seconds reload |
+| Weapon (levels 1–5) | 250 | Each level +10% QualityArmory weapon damage |
+| Outpost | 500+, scales | Construct another distant fortress and cannon |
+| Radius | 450 | Enlarge civilization territory by 128 blocks |
+| Guards | 250 | Add two VexBot fighters, stationed at an outpost |
+| Repair | 120 | Restore a damaged nearby fortress and its core |
+
+Upgrades deduct the player's coins first, then the shared treasury if needed.
+Balances, horn assignments, allies, outpost locations, damage coordinates and
+upgrade levels persist to `plugins/QualityArmory/territories.yml`.
+A castle's floating objective name shows its integrity. If blocks are
+destroyed, use `/qa civ damage` to find the most recently hit position.
+For repairs, stand within 48 blocks of a damaged outpost.
+
+### VexBot Paper integration
+
+Runify optionally uses the **official VexBot Paper plugin** through its
+documented `/vexbot team` commands. It does **not** compile against
+VexBot's Fabric-only extension API. When VexBot is installed, purchasing
+guards creates a dedicated bot team and stations each purchased pair at a fort.
+An attack horn sends a team attack order; a retreat/victory horn returns
+them to hold the capital; intrusions trigger defensive guard orders.
+Artillery coverage is coordinated with a garrison: if a purchased guard
+team is active, a nearby existing cannon can fire a ballistic defensive
+salvo and must complete its normal reload afterward.
+
+**Compatibility warning:** Official VexBot Paper 3.x needs a matching
+Minecraft **1.21.11+ Paper build** and its required Java runtime.
+Runify's current Maven dependency still targets **Spigot API 1.20.6**;
+compile success alone does not establish in-game compatibility with VexBot.
+Use the vendor's matching Paper plugin on a test server first.
+
+**Not supported by VexBot's documented Paper command interface:** native
+mounting/driving of Runify tanks or actual fake-player interaction with
+Runify's cannon hitboxes. Guard-triggered artillery is operated by Runify
+on behalf of the VexBot garrison; it is not a claim that VexBot has a vehicle
+driver API. Tank integration needs a separate vehicle-control interface and
+runtime playtesting.
+
+### Standalone cannon
+
+`/qa cannon` still creates an independent modeled 3D siege cannon.
+Sneak + right-click the model, align the barrel within ±28° and aim
+8°–45° above horizontal. Cannon shells have gravity and a baseline
+30-second reload. Base damage and destruction are 2× the configured RPG,
+before purchased cannon upgrades. Normal explosion/protection settings apply.
