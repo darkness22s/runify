@@ -65,12 +65,14 @@ public final class SiegeTankManager implements Listener {
     private static final int SHELL_RANGE_TICKS = 100;
     private final QAMain plugin;
     private final NamespacedKey reloadKey;
+    private final NamespacedKey civilizationKey;
     private final Map<UUID, Tank> tanks = new ConcurrentHashMap<>();
     private final Map<UUID, Tank> armorHitboxes = new ConcurrentHashMap<>();
 
     public SiegeTankManager(QAMain plugin) {
         this.plugin = plugin;
         this.reloadKey = new NamespacedKey(plugin, "tank_ready_at");
+        this.civilizationKey = new NamespacedKey(plugin, "tank_civilization_owner");
     }
 
     public void spawn(Player player) {
@@ -116,6 +118,108 @@ public final class SiegeTankManager implements Listener {
                 + plugin.getConfig().getInt("tank.reloadSeconds", 35) + " seconds to reload.");
     }
 
+    /**
+     * Deploy a genuine 400-HP drivable tank for an allied VexBot crew.
+     * The tank is persistent, with its owner recorded in the mount PDC.
+     */
+    public void spawnForCivilization(UUID owner, Location location) {
+        if (location == null || location.getWorld() == null) return;
+        final Location where = location.clone();
+        FoliaRunnable.runRegionTask(plugin, where, () -> {
+            if (!ProtectionHandler.canBreak(where) || !ProtectionHandler.canExplode(where)) return;
+            for (Entity entity : where.getWorld().getNearbyEntities(where, 7, 5, 7)) {
+                if (entity instanceof Horse && entity.getScoreboardTags().contains(TANK_TAG)
+                        && owner.toString().equals(entity.getPersistentDataContainer()
+                        .get(civilizationKey, PersistentDataType.STRING))) return;
+            }
+            Horse horse = where.getWorld().spawn(where, Horse.class, spawned -> {
+                spawned.setAdult();
+                spawned.setTamed(true);
+                spawned.setSilent(true);
+                spawned.setRemoveWhenFarAway(false);
+                spawned.setCustomName(ChatColor.DARK_GREEN + "Crownlands Armored Division");
+                spawned.setCustomNameVisible(true);
+                spawned.addScoreboardTag(TANK_TAG);
+                spawned.getPersistentDataContainer().set(civilizationKey, PersistentDataType.STRING, owner.toString());
+                spawned.getInventory().setSaddle(new ItemStack(Material.SADDLE));
+                spawned.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,
+                        Integer.MAX_VALUE, 0, true, false));
+                double hp = Math.max(40, plugin.getConfig().getDouble("tank.health", 400));
+                spawned.getAttribute(Attribute.MAX_HEALTH).setBaseValue(hp);
+                spawned.setHealth(hp);
+                spawned.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(
+                        Math.max(0.06, Math.min(0.40, plugin.getConfig().getDouble("tank.movementSpeed", 0.20))));
+                spawned.setJumpStrength(0.12);
+                spawned.setAI(false);
+            });
+            attach(horse);
+        });
+    }
+
+    public Location closestOwnedTank(UUID owner, Location near) {
+        if (near == null || near.getWorld() == null) return null;
+        Location selected = null;
+        double best = Double.MAX_VALUE;
+        for (Tank tank : tanks.values()) {
+            if (!owner.toString().equals(tank.horse.getPersistentDataContainer()
+                    .get(civilizationKey, PersistentDataType.STRING))) continue;
+            Location location = tank.lastLocation;
+            if (location == null || !location.getWorld().equals(near.getWorld())) continue;
+            double distance = location.distanceSquared(near);
+            if (distance < best) { best = distance; selected = location; }
+        }
+        return selected == null ? null : selected.clone();
+    }
+
+    /**
+     * Assign a real VexBot fake Player to an existing tank and send a travel /
+     * firing mission. Returning false tells VexBot to walk to the tank first.
+     */
+    public boolean commandGuard(UUID owner, Player bot, Location target) {
+        if (bot == null || target == null || bot.getWorld() != target.getWorld()) return false;
+        if (!bot.isOnline() || !bot.isValid()) return false;
+        Location botPosition = bot.getLocation();
+        Tank match = null;
+        double best = 100;
+        for (Tank tank : tanks.values()) {
+            if (!owner.toString().equals(tank.horse.getPersistentDataContainer()
+                    .get(civilizationKey, PersistentDataType.STRING))) continue;
+            Location position = tank.lastLocation;
+            if (position == null || position.getWorld() != bot.getWorld()) continue;
+            double d = botPosition.distanceSquared(position);
+            if (tank.guardPilot != null && !bot.getUniqueId().equals(tank.guardPilot)) continue;
+            if (d < best) {best = d; match = tank;}
+        }
+        if (match == null) return false;
+        final Tank assigned = match;
+        final Location destination = target.clone();
+        FoliaRunnable.runEntityTask(plugin, assigned.horse, () -> {
+            if (!assigned.horse.isValid()) return;
+            if (assigned.guardPilot != null && !assigned.guardPilot.equals(bot.getUniqueId())) return;
+            if (!assigned.horse.getPassengers().isEmpty()
+                    && !assigned.horse.getPassengers().contains(bot)) return;
+            if (!assigned.horse.getPassengers().contains(bot)) {
+                assigned.horse.setAI(false);
+                if (!assigned.horse.addPassenger(bot)) return;
+            }
+            assigned.guardPilot = bot.getUniqueId();
+            assigned.guardTarget = destination;
+        });
+        return true;
+    }
+
+    public void releaseGuard(Player bot) {
+        if (bot == null) return;
+        for (Tank tank : tanks.values()) {
+            if (!bot.getUniqueId().equals(tank.guardPilot)) continue;
+            FoliaRunnable.runEntityTask(plugin, tank.horse, () -> {
+                tank.guardPilot = null;
+                tank.guardTarget = null;
+                if (tank.horse.getPassengers().contains(bot)) tank.horse.removePassenger(bot);
+            });
+        }
+    }
+
     private void attach(Horse horse) {
         if (tanks.containsKey(horse.getUniqueId())) return;
         Tank tank = new Tank(horse);
@@ -134,7 +238,9 @@ public final class SiegeTankManager implements Listener {
                     return;
                 }
                 // Never let an empty, invisible mount wander away from its hull.
-                horse.setAI(!horse.getPassengers().isEmpty());
+                horse.setAI(!horse.getPassengers().isEmpty() && tank.guardPilot == null);
+                tank.lastLocation = horse.getLocation().clone();
+                if (tank.guardPilot != null && counter % 2 == 0) tank.driveGuard();
                 tank.syncModel();
                 if (++counter % 10 == 0 && !horse.getPassengers().isEmpty()) {
                     Entity rider = horse.getPassengers().get(0);
@@ -178,6 +284,12 @@ public final class SiegeTankManager implements Listener {
 
     private void mount(Player player, Horse horse) {
         if (!tanks.containsKey(horse.getUniqueId())) attach(horse);
+        Tank occupied = tanks.get(horse.getUniqueId());
+        if (occupied != null && occupied.guardPilot != null) {
+            occupied.guardPilot = null;
+            occupied.guardTarget = null;
+            horse.eject();
+        }
         if (!horse.getPassengers().isEmpty()) {
             player.sendMessage(ChatColor.YELLOW + "The driver's seat is occupied.");
             return;
@@ -259,9 +371,13 @@ public final class SiegeTankManager implements Listener {
     }
 
     private void shoot(Tank tank, Player gunner) {
+        shoot(tank, gunner, gunner.getEyeLocation().getDirection().normalize());
+    }
+
+    private void shoot(Tank tank, Player gunner, Vector aim) {
         Horse horse = tank.horse;
         Location origin = horse.getLocation();
-        Vector direction = gunner.getEyeLocation().getDirection().normalize();
+        Vector direction = aim.clone().normalize();
         Vector forward = direction.clone().setY(0);
         if (forward.lengthSquared() < 0.001) forward = origin.getDirection().setY(0);
         forward.normalize();
@@ -361,9 +477,14 @@ public final class SiegeTankManager implements Listener {
         private FoliaRunnable tickTask;
         private volatile boolean charging;
         private volatile long readyAt;
+        private volatile UUID guardPilot;
+        private volatile Location guardTarget;
+        private volatile Location lastLocation;
+        private volatile float guardTurretYaw;
 
         private Tank(Horse horse) {
             this.horse = horse;
+            this.lastLocation = horse.getLocation().clone();
             Long savedReload = horse.getPersistentDataContainer().get(reloadKey, PersistentDataType.LONG);
             this.readyAt = savedReload == null ? 0L : savedReload;
         }
@@ -448,7 +569,8 @@ public final class SiegeTankManager implements Listener {
             Location base = horse.getLocation();
             float hullYaw = base.getYaw();
             float turretYaw = hullYaw;
-            if (!horse.getPassengers().isEmpty() && horse.getPassengers().get(0) instanceof Player) {
+            if (guardPilot != null) turretYaw = guardTurretYaw;
+            else if (!horse.getPassengers().isEmpty() && horse.getPassengers().get(0) instanceof Player) {
                 turretYaw = ((Player) horse.getPassengers().get(0)).getLocation().getYaw();
             }
             for (Part part : parts) {
@@ -459,6 +581,80 @@ public final class SiegeTankManager implements Listener {
                 FoliaRunnable.teleport(part.display, target);
             }
             syncHitboxes(base);
+        }
+
+        /**
+         * Tank AI ticks on the mount's own region thread. A VexBot fake Player
+         * actually rides the Horse; the tank chassis drives, turns its turret,
+         * checks terrain and fires the same 3x-RPG projectile used by humans.
+         */
+        private void driveGuard() {
+            if (guardPilot == null || guardTarget == null) return;
+            Player bot = Bukkit.getPlayer(guardPilot);
+            if (bot == null || !bot.isOnline() || !horse.getPassengers().contains(bot)) {
+                guardPilot = null;
+                guardTarget = null;
+                horse.setVelocity(new Vector());
+                return;
+            }
+            Location here = horse.getLocation();
+            Location target = guardTarget;
+            if (target.getWorld() != here.getWorld()) return;
+            Vector offset = target.toVector().subtract(here.toVector());
+            double distance = Math.hypot(offset.getX(), offset.getZ());
+            if (distance < 0.1) return;
+
+            float yaw = (float) Math.toDegrees(Math.atan2(-offset.getX(), offset.getZ()));
+            guardTurretYaw = yaw;
+            if (distance > 17) {
+                Vector steering = new Vector(offset.getX(), 0, offset.getZ()).normalize();
+                Vector ahead = steering.clone().multiply(2.6);
+                Location probe = here.clone().add(ahead);
+                // Driveable open terrain only; stop before walls, water, lava
+                // and cliffs rather than teleport the vehicle through terrain.
+                Material foot = probe.getBlock().getType();
+                Material head = probe.clone().add(0, 1, 0).getBlock().getType();
+                Material ground = probe.clone().add(0, -1, 0).getBlock().getType();
+                if ((!foot.isSolid() && !head.isSolid()) && ground.isSolid()
+                        && foot != Material.LAVA && foot != Material.WATER) {
+                    horse.setRotation(yaw, 0);
+                    horse.setVelocity(new Vector(steering.getX() * 0.19,
+                            horse.getVelocity().getY(), steering.getZ() * 0.19));
+                } else {
+                    // Steering correction on an obstruction; does not force
+                    // the horse into unsupported terrain.
+                    horse.setVelocity(new Vector(0, horse.getVelocity().getY(), 0));
+                }
+            } else {
+                horse.setVelocity(new Vector(0, horse.getVelocity().getY(), 0));
+            }
+
+            if (distance < 85 && distance > 9 && !charging
+                    && System.currentTimeMillis() >= readyAt
+                    && ProtectionHandler.canExplode(target)) {
+                final Location intended = target.clone();
+                charging = true;
+                long chargeTicks = Math.max(1, Math.min(10,
+                        plugin.getConfig().getInt("tank.chargeSeconds", 2))) * 20L;
+                horse.getWorld().playSound(here, Sound.BLOCK_PISTON_EXTEND, 1.5f, .55f);
+                new FoliaRunnable() {
+                    @Override public void run() {
+                        charging = false;
+                        if (!horse.isValid() || guardPilot == null
+                                || !horse.getPassengers().contains(bot)) return;
+                        Location current = horse.getLocation();
+                        Vector shot = intended.toVector().subtract(current.toVector());
+                        double travelTime = Math.max(1, shot.length() / 2.6);
+                        shot.setY(shot.getY() + .0275 * travelTime * travelTime / 2.0);
+                        if (shot.lengthSquared() < .01) return;
+                        shoot(Tank.this, bot, shot.normalize());
+                        long reload = Math.max(5, Math.min(120,
+                                plugin.getConfig().getInt("tank.reloadSeconds", 35))) * 1000L;
+                        readyAt = System.currentTimeMillis() + reload;
+                        horse.getPersistentDataContainer().set(reloadKey, PersistentDataType.LONG, readyAt);
+                    }
+                }.runTaskLater(plugin, horse, chargeTicks);
+            }
         }
 
         private void stop() {
