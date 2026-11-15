@@ -577,7 +577,8 @@ public final class TerritoryCivilizations implements Listener {
     private void ally(Player player,Civ c,String name) {
         if(!c.owner.equals(player.getUniqueId()))return;
         Player friend=Bukkit.getPlayerExact(name);
-        if(friend==null||friend.equals(player)||civilizations.containsKey(friend.getUniqueId())){
+        if(friend==null||friend.equals(player)||civilizations.containsKey(friend.getUniqueId())
+                ||(memberCiv(friend)!=null&&!c.allies.contains(friend.getUniqueId()))){
             player.sendMessage(ChatColor.RED+"Choose another online player without a civilization.");return;
         }
         if(c.allies.remove(friend.getUniqueId())){
@@ -593,8 +594,9 @@ public final class TerritoryCivilizations implements Listener {
 
     @EventHandler(priority=EventPriority.MONITOR,ignoreCancelled=true)
     public void onMove(PlayerMoveEvent event) {
-        if(event.getTo()==null||event.getFrom().getBlockX()==event.getTo().getBlockX()
-                &&event.getFrom().getBlockZ()==event.getTo().getBlockZ())return;
+        if(event.getTo()==null || (event.getFrom().getWorld().equals(event.getTo().getWorld())
+                && event.getFrom().getBlockX()==event.getTo().getBlockX()
+                && event.getFrom().getBlockZ()==event.getTo().getBlockZ()))return;
         Player p=event.getPlayer();
         Civ territory=at(event.getTo());
         UUID last=currentlyInside.get(p.getUniqueId());
