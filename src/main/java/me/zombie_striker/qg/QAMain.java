@@ -50,7 +50,7 @@ import me.zombie_striker.qg.npcs.GunnerTrait;
 import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
 import me.zombie_striker.qg.structures.SiegeOutpost;
 import me.zombie_striker.qg.structures.SiegeCannon;
-import me.zombie_striker.qg.structures.CivilizationManager;
+import me.zombie_striker.qg.structures.TerritoryCivilizations;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -80,7 +80,9 @@ import java.util.logging.Level;
 public class QAMain extends JavaPlugin {
 
     private SiegeCannon siegeCannons;
-    private CivilizationManager civilizationManager;
+    private TerritoryCivilizations civilizationManager;
+
+    public TerritoryCivilizations getTerritories() { return civilizationManager; }
 
     private static String changelog = null;
 
@@ -632,7 +634,7 @@ public class QAMain extends JavaPlugin {
         }
 
         siegeCannons = new SiegeCannon(this);
-        civilizationManager = new CivilizationManager(this, siegeCannons);
+        civilizationManager = new TerritoryCivilizations(this, siegeCannons);
         Bukkit.getPluginManager().registerEvents(siegeCannons, this);
         Bukkit.getPluginManager().registerEvents(civilizationManager, this);
 
@@ -1274,6 +1276,8 @@ public class QAMain extends JavaPlugin {
                     if (b(option, args[1])) s.add(option);
                 return s;
             }
+            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ"))
+                return civilizationManager.complete(args);
             if (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("drop")) {
                 for (Entry<MaterialStorage, Gun> e : gunRegister.entrySet()) {
                     if (e.getValue() instanceof AttachmentBase) {
@@ -1294,6 +1298,8 @@ public class QAMain extends JavaPlugin {
             }
             return s;
         } else if (args.length == 3) {
+            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ"))
+                return civilizationManager.complete(args);
             if (args[0].equalsIgnoreCase("give")) {
                 return null;
             }
@@ -1773,9 +1779,13 @@ public class QAMain extends JavaPlugin {
                     + "Deploy a standalone 3D siege cannon at your feet.");
         if (sender.hasPermission("qualityarmory.civ")) {
             sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
-                    + "Creates nine fortified districts and five heavy artillery cannons (overwrites terrain).");
-            sender.sendMessage(ChatColor.GOLD + "/QA civ status|locate|repair|raid: " + ChatColor.GRAY
-                    + "Track and defend objectives; fight raids; restore integrity using iron.");
+                    + "Creates a player-owned territory with five widely scattered forts (overwrites terrain).");
+            sender.sendMessage(ChatColor.GOLD + "/QA civ create <owner> [radius]: " + ChatColor.GRAY
+                    + "Assign a territory (192-1536 block radius).");
+            sender.sendMessage(ChatColor.GOLD + "/QA civ horn attack|retreat|victory: " + ChatColor.GRAY
+                    + "Assign the held goat horn to a combat order.");
+            sender.sendMessage(ChatColor.GOLD + "/QA civ shop|upgrade|balance|damage|target|ally: " + ChatColor.GRAY
+                    + "Economy, damage tracking, teammates, war and guard upgrades.");
         }
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
