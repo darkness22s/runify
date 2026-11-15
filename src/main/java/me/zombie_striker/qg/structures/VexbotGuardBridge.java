@@ -38,9 +38,17 @@ public final class VexbotGuardBridge {
         if (!available() || amount < 1 || amount > 8) return;
         String name = team(owner);
         send("vexbot team create " + name);
+        Player leader = Bukkit.getPlayer(owner);
+        if (leader != null) send("vexbot team " + name + " members add " + leader.getName());
         send("vexbot team " + name + " settings retreatwhenlow on");
         send("vexbot team " + name + " massspawn " + amount + " randomgear "
                 + location.getBlockX() + " " + location.getBlockY() + " " + location.getBlockZ());
+    }
+
+    public void setMember(java.util.UUID owner, Player player, boolean add) {
+        if (!available()) return;
+        send("vexbot team " + team(owner) + " members " + (add ? "add " : "remove ")
+                + player.getName());
     }
 
     public void attack(java.util.UUID owner, Player target) {
