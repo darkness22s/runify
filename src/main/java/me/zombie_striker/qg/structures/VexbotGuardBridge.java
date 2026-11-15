@@ -39,7 +39,7 @@ public final class VexbotGuardBridge {
         String name = team(owner);
         send("vexbot team create " + name);
         Player leader = Bukkit.getPlayer(owner);
-        if (leader != null) send("vexbot team " + name + " members add " + leader.getName());
+        if (leader != null) send("vexbot team " + name + " addplayer " + leader.getName());
         send("vexbot team " + name + " settings retreatwhenlow on");
         send("vexbot team " + name + " massspawn " + amount + " randomgear "
                 + location.getBlockX() + " " + location.getBlockY() + " " + location.getBlockZ());
@@ -47,8 +47,30 @@ public final class VexbotGuardBridge {
 
     public void setMember(java.util.UUID owner, Player player, boolean add) {
         if (!available()) return;
-        send("vexbot team " + team(owner) + " members " + (add ? "add " : "remove ")
+        send("vexbot team " + team(owner) + (add ? " addplayer " : " removeplayer ")
                 + player.getName());
+    }
+
+    /** Give a specific fake player a physical route to a vehicle or gun station. */
+    public void gotoBot(Player bot, Location target) {
+        if (!available() || bot == null || target == null) return;
+        send("vexbot goto " + bot.getName() + " "
+                + target.getBlockX() + " " + target.getBlockY() + " "
+                + target.getBlockZ() + " then hold");
+    }
+
+    public void stopBot(Player bot) {
+        if (!available() || bot == null) return;
+        send("vexbot goto " + bot.getName() + " stop");
+        send("vexbot follow " + bot.getName() + " stop");
+        send("vexbot attack stop " + bot.getName());
+    }
+
+    public void lookBot(Player bot, Location target) {
+        if (!available() || bot == null || target == null) return;
+        send("vexbot look " + bot.getName() + " "
+                + target.getBlockX() + " " + target.getBlockY() + " "
+                + target.getBlockZ());
     }
 
     public void attack(java.util.UUID owner, Player target) {
