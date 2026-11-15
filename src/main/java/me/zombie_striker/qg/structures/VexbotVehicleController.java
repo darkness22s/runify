@@ -145,6 +145,15 @@ public final class VexbotVehicleController implements Listener {
         return a != null && a.owner.equals(civilization);
     }
 
+    public UUID civilizationOf(UUID bot) {
+        Assignment assignment = assignments.get(bot);
+        return assignment == null ? null : assignment.owner;
+    }
+
+    public boolean isAnyGuard(UUID bot) {
+        return assignments.containsKey(bot);
+    }
+
     /**
      * A VexBot fake player has a synthetic server connection without a normal
      * client address. Reject real player accounts so the owner cannot forcibly
