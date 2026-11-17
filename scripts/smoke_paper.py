@@ -74,6 +74,8 @@ def run() -> None:
     sent_command = False
     command_sent_at = 0
     while time.monotonic() < deadline:
+        if sent_command and time.monotonic() - command_sent_at >= 8:
+            break
         if process.poll() is not None and messages.empty():
             break
         try:
