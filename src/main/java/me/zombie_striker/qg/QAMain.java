@@ -268,7 +268,7 @@ public class QAMain extends JavaPlugin {
     public static boolean hasProtocolLib = false;
     public static boolean hasViaVersion = false;
     public static boolean hasViaRewind = false;
-    public static boolean AUTOUPDATE = true;
+    public static boolean AUTOUPDATE = false;
     public static boolean SWAP_TO_LMB_SHOOT = true;
     public static boolean SHOW_BULLETS_LORE = false;
     public static boolean ENABLE_LORE_INFO = true;
@@ -643,6 +643,7 @@ public class QAMain extends JavaPlugin {
         civilizationManager = new TerritoryCivilizations(this, siegeCannons);
         Bukkit.getPluginManager().registerEvents(siegeCannons, this);
         Bukkit.getPluginManager().registerEvents(civilizationManager, this);
+        getLogger().info("Runify Crownlands registered. Commands: /qa, /cua, /runify; open /qa civ.");
 
         Bukkit.getPluginManager().registerEvents(new QAListener(), this);
         Bukkit.getPluginManager().registerEvents(new GunDamageHandler(), this);
@@ -663,10 +664,13 @@ public class QAMain extends JavaPlugin {
         } catch (Exception | Error e) {
         }
 
-        try {
-            if (AUTOUPDATE)
-                GithubUpdater.autoUpdate(this, "Lorenzo0111", "QualityArmory", "QualityArmory.jar");
-        } catch (Exception e) {
+        // RUNIFY: never silently replace this fork with a vanilla QualityArmory
+        // release. That upstream auto-updater would erase all Crownlands / tank
+        // features after a restart, despite a successful local installation.
+        if (AUTOUPDATE) {
+            getLogger().warning("Runify disables upstream QualityArmory auto-updates. "
+                    + "Install only verified Runify builds from its own GitHub release.");
+            AUTOUPDATE = false;
         }
 
         Metrics metrics = new Metrics(this, 1699);
@@ -952,7 +956,8 @@ public class QAMain extends JavaPlugin {
         enableCrafting = (boolean) a("enableCrafting", true);
         enableShop = (boolean) a("enableShop", true);
 
-        AUTOUPDATE = (boolean) a("AUTO-UPDATE", true);
+        AUTOUPDATE = false;
+        a("AUTO-UPDATE", false);
         SWAP_TO_LMB_SHOOT = !(boolean) a("Swap-Reload-and-Shooting-Controls", false);
 
         orderShopByPrice = (boolean) a("Order-Shop-By-Price", orderShopByPrice);
