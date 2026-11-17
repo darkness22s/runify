@@ -12,9 +12,11 @@ enable_permssionsToShoot: false
 
 #Resourcepack settings.
 
+# Runify hosts a version-matched QualityArmory weapons pack on its own release.
+# Do not use the obsolete pre-1.21 Dropbox pack; this is the public HTTPS ZIP.
 useDefaultResourcepack: true
-DefaultResourcepackOverride: false
-DefaultResourcepack: https://www.dropbox.com/s/g5rkfdcmlax9w6a/QualityArmoryV2.0.2.zip?dl=1
+DefaultResourcepackOverride: true
+DefaultResourcepack: https://github.com/darkness22s/runify/releases/download/runify-1.21.11/Runify-ResourcePack-1.21.11.zip
 KickPlayerIfDeniedResourcepack: false
 sendOnJoin: true
 sendTitleOnJoin: false
