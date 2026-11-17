@@ -176,25 +176,34 @@ player. Further outposts (up to 15) can be bought later.
 dedicated, unclaimed battle map. The owner must be online at creation time.
 A civilization will not be placed over another civilization's claim.
 
-### Create a civilization
+### One command for the whole civilization
 
 ```text
-/qa civ                                    # claim a 512-block radius for yourself
-/qa civ create Alex 768                    # admin assigns Alex a 768-block radius
-/qa civ status                             # owner, radius, fortress HP, upgrades
-/qa civ wars                               # active enemies and kill score
-/qa civ resume                             # resume construction interrupted by a restart
-/qa civ locate                             # coordinates for every outpost
-/qa civ damage                             # damaged forts + last damage coordinates
-/qa civ ally Jordan                        # add/remove an allied teammate
-/qa civ target Alex                         # select a rival civilization to attack
+/qa civ
 ```
 
-`qualityarmory.civ` permits ordinary civilization commands (by default OP).
-`qualityarmory.civ.manage` allows assigning land to **other** online owners.
-Territory radius is configurable from **192 to 1536 blocks** when created,
-and can be expanded with coins. Players in your ally list can access and
-defend your claim without triggering a border war.
+Opens the **Crownlands in-game menu**. Click the icons—no command list
+to memorize:
+
+- **Create:** Choose the owner (admins can cycle online players), choose a
+  radius from 192 to 1,536 blocks, and click Create at Your Position.
+- **Overview & Forts:** See your owner, claim radius, treasury, defenses,
+  integrity and coordinates. Click a fort to set your compass destination.
+- **Shop:** Buy cannon/weapon upgrades, more outposts, territory expansion,
+  VexBot squads and repairs with coins.
+- **Battle Horns:** Hold a goat horn and click Attack, Retreat or Victory to
+  assign its sound. Blow that horn to order guards in combat.
+- **Wars & Rivals:** See war scores and click an online rival to target them.
+- **Team:** Click players to add/remove allies.
+- **Guards:** View VexBot guards, left-click to assign a tank driver,
+  right-click for a cannon operator, or Shift-right-click to unassign.
+- **Siege Tools:** Deploy a standalone 3D tank or cannon from the menu.
+
+An old `/qa civ ...` subcommand still works for server administrators,
+macros and existing setups, but it is not needed or offered in tab suggestions.
+The menu checks ownership and existing permissions before taking any action.
+A civilization can only be created for an online owner. Building forts
+**overwrites terrain**, so use a backed-up battle world.
 
 ### War declarations and goat horns
 
@@ -205,14 +214,9 @@ Impacts from **RPGs, artillery, grenades and other AOE explosives**
 also trigger alerts. **Ordinary bullets do not**.
 War alerts have a spam-prevention cooldown.
 
-The owner assigns **three distinct goat horn instrument types** by holding
-the instrument and using:
-
-```text
-/qa civ horn attack
-/qa civ horn retreat
-/qa civ horn victory
-```
+The owner assigns **three distinct goat horn instrument types** from
+**Crownlands → Battle Horns**, holding the desired goat horn in the main
+hand and clicking the appropriate order. No extra commands are required.
 
 When a bound horn is played, Runify interprets it as the owner's order:
 
@@ -233,16 +237,8 @@ second: the same killer-victim pair has a **90-second payout cooldown**.
 
 ### Coin economy and persistent upgrades
 
-```text
-/qa civ balance
-/qa civ shop
-/qa civ upgrade cannon
-/qa civ upgrade weapon
-/qa civ upgrade outpost
-/qa civ upgrade radius
-/qa civ upgrade guards
-/qa civ upgrade repair
-```
+Open **`/qa civ` → Upgrades & Shop**. Click an upgrade to purchase it.
+Your balance and civilization treasury appear at the top of the shop.
 
 | Upgrade | Cost | Effect |
 | --- | ---: | --- |
@@ -257,7 +253,7 @@ Upgrades deduct the player's coins first, then the shared treasury if needed.
 Balances, active wars, truces, horn assignments, allies, outpost locations, damage coordinates and
 upgrade levels persist to `plugins/QualityArmory/territories.yml`.
 A castle's floating objective name shows its integrity. If blocks are
-destroyed, use `/qa civ damage` to find the most recently hit position.
+destroyed, open **Damage Report** from the menu to see the latest impact.
 For repairs, stand within 48 blocks of a damaged outpost.
 
 ### VexBot Paper 1.21.11 – actual vehicle crews
@@ -280,18 +276,14 @@ after arriving within the permitted distance can they use that cannon,
 subject to 28° traverse, 8°–45° elevation, ballistic trajectory and
 persistent reload.
 
-If VexBot's Paper version doesn't expose a purchased guard as a Bukkit
-Player automatically, bind an online VexBot fake-player explicitly:
+If VexBot's Paper build does not automatically expose purchased guards
+as Bukkit fake-player entities, open **`/qa civ` → VexBot Guards**.
+Left-click an online bot to assign the tank driver role, right-click for
+cannon operation, or Shift-right-click to remove its assignment.
+There is no need to type the bot's exact name into a command.
 
-```text
-/qa civ guard list
-/qa civ guard bind <VexBotPlayerName> tank
-/qa civ guard bind <VexBotPlayerName> cannon
-/qa civ guard unbind <VexBotPlayerName>
-```
-
-The owner chooses the rival with `/qa civ target <online-owner>`, then
-blows their configured attack horn. Invasions also alert the defending
+The owner chooses a rival from **`/qa civ` → Wars & Enemies → Choose Rival**,
+then blows their configured attack horn. Invasions also alert the defending
 crew. Retreat/victory horns end attack orders, and the crew returns to
 their garrison. Bot crews and their home stations persist in
 `plugins/QualityArmory/vexbot-vehicle-crews.yml`.
