@@ -86,10 +86,34 @@ jobs:
           path: dist/Runify-ResourcePack-1.21.11.zip
           if-no-files-found: error
 
+  smoke-paper:
+    name: Launch real Paper 1.21.11 and run /qa
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download verified plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: Runify-QualityArmory
+          path: target
+
+      - name: Boot Paper 1.21.11 and confirm Runify commands work
+        run: python scripts/smoke_paper.py target/QualityArmory.jar
+
   publish:
     name: Publish installable Runify plugin and matching weapon textures
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build, client-mod, resource-pack]
+    needs: [build, client-mod, resource-pack, smoke-paper]
     runs-on: ubuntu-latest
     permissions:
       contents: write
