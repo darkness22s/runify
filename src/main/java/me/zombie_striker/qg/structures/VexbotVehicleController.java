@@ -219,6 +219,41 @@ public final class VexbotVehicleController implements Listener {
         leader.sendMessage(ChatColor.YELLOW + "Also: /qa civ guard list | /qa civ guard unbind <VexBotName>");
     }
 
+    /** Menu-facing crew management, identical permission/ownership checks to the command bridge. */
+    public Role roleFor(UUID owner, UUID bot) {
+        Assignment current = assignments.get(bot);
+        return current != null && current.owner.equals(owner) ? current.role : null;
+    }
+
+    public boolean bindFromMenu(Player commander, UUID owner, Player bot, Role role) {
+        if (!commander.getUniqueId().equals(owner) || !bridge.available() || !fakePlayer(bot)) {
+            commander.sendMessage(ChatColor.RED+"Only your civilization owner may assign a VexBot fake player.");
+            return false;
+        }
+        Assignment prior = assignments.get(bot.getUniqueId());
+        if (prior != null && !prior.owner.equals(owner)) {
+            commander.sendMessage(ChatColor.RED+"That guard already belongs to another civilization.");
+            return false;
+        }
+        if (prior != null && prior.role == Role.TANK && role != Role.TANK)
+            plugin.getTanks().releaseGuard(bot);
+        bind(owner,bot,role);
+        commander.sendMessage(ChatColor.GREEN+bot.getName()+" assigned to "+role.name().toLowerCase(Locale.ROOT)+".");
+        return true;
+    }
+
+    public boolean unbindFromMenu(Player commander, UUID owner, Player bot) {
+        if (!commander.getUniqueId().equals(owner) || !isGuard(owner,bot.getUniqueId())) {
+            commander.sendMessage(ChatColor.RED+"This guard isn't assigned to your civilization.");
+            return false;
+        }
+        assignments.remove(bot.getUniqueId());
+        plugin.getTanks().releaseGuard(bot);
+        save();
+        commander.sendMessage(ChatColor.YELLOW+bot.getName()+" removed from crew duty.");
+        return true;
+    }
+
     private void bind(UUID owner, Player bot, Role role) {
         assignments.put(bot.getUniqueId(), new Assignment(bot.getUniqueId(), owner, role, bot.getLocation().clone()));
         save();
