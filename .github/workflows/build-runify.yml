@@ -28,6 +28,11 @@ jobs:
       - name: Compile and package plugin
         run: mvn --batch-mode --no-transfer-progress package
 
+      - name: Verify packaged plugin descriptor, classes and commands
+        run: |
+          python -m pip install --quiet PyYAML
+          python scripts/verify_plugin.py target/QualityArmory.jar
+
       - name: Upload plugin JAR
         uses: actions/upload-artifact@v4
         with:
@@ -63,3 +68,53 @@ jobs:
           name: Runify-Fabric-12111-HitPreview
           path: client-mod/build/libs/*.jar
           if-no-files-found: error
+
+  resource-pack:
+    name: Build Minecraft 1.21.11 weapon textures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Build and validate 1.21.11 resource pack ZIP
+        run: python scripts/build_resource_pack.py
+
+      - name: Upload resource pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: Runify-ResourcePack-12111
+          path: dist/Runify-ResourcePack-1.21.11.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish installable Runify plugin and matching weapon textures
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, client-mod, resource-pack]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: Runify-QualityArmory
+          path: release
+
+      - name: Download resource pack
+        uses: actions/download-artifact@v4
+        with:
+          name: Runify-ResourcePack-12111
+          path: release
+
+      - name: Publish matching JAR and ZIP under stable public URLs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mv release/QualityArmory.jar release/Runify-QualityArmory-1.21.11.jar
+          if gh release view runify-1.21.11 >/dev/null 2>&1; then
+            gh release upload runify-1.21.11 release/Runify-QualityArmory-1.21.11.jar release/Runify-ResourcePack-1.21.11.zip --clobber
+          else
+            gh release create runify-1.21.11 release/Runify-QualityArmory-1.21.11.jar release/Runify-ResourcePack-1.21.11.zip --target main --title "Runify for Minecraft 1.21.11" --notes "Install the Runify-QualityArmory-1.21.11.jar file in Paper plugins/. The matching 1.21.11 resource pack downloads automatically from this public release. Use /qa civ to open Crownlands."
+          fi
