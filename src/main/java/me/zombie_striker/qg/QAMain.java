@@ -1332,6 +1332,18 @@ public class QAMain extends JavaPlugin {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
+            if (args.length == 0) {
+                // Previously /qa silently returned true, making an installed
+                // plugin appear unresponsive even when Bukkit had registered it.
+                if (sender instanceof Player
+                        && sender.hasPermission("qualityarmory.civ")
+                        && civilizationManager != null) {
+                    civilizationManager.command((Player) sender, new String[]{"civ"});
+                } else {
+                    sendHelp(sender);
+                }
+                return true;
+            }
             if (args.length > 0) {
                 if (args[0].equalsIgnoreCase("tank")) {
                     if (!sender.hasPermission("qualityarmory.tank")) sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
