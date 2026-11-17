@@ -1279,13 +1279,9 @@ public class QAMain extends JavaPlugin {
         }
         if (args.length == 2) {
             List<String> s = new ArrayList<String>();
-            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ")) {
-                for (String option : Arrays.asList("status", "locate", "repair", "raid"))
-                    if (b(option, args[1])) s.add(option);
-                return s;
-            }
-            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ"))
-                return civilizationManager.complete(args);
+            // Civilization management is a single GUI entry point: /qa civ.
+            // Keep legacy subcommands callable without suggesting a long list.
+            if (args[0].equalsIgnoreCase("civ")) return Collections.emptyList();
             if (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("drop")) {
                 for (Entry<MaterialStorage, Gun> e : gunRegister.entrySet()) {
                     if (e.getValue() instanceof AttachmentBase) {
@@ -1797,13 +1793,8 @@ public class QAMain extends JavaPlugin {
                     + "Deploy a drivable 3D siege tank with heavy cannon.");
         if (sender.hasPermission("qualityarmory.civ")) {
             sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
-                    + "Creates a player-owned territory with five widely scattered forts (overwrites terrain).");
-            sender.sendMessage(ChatColor.GOLD + "/QA civ create <owner> [radius]: " + ChatColor.GRAY
-                    + "Assign a territory (192-1536 block radius).");
-            sender.sendMessage(ChatColor.GOLD + "/QA civ horn attack|retreat|victory: " + ChatColor.GRAY
-                    + "Assign the held goat horn to a combat order.");
-            sender.sendMessage(ChatColor.GOLD + "/QA civ shop|upgrade|balance|damage|target|ally: " + ChatColor.GRAY
-                    + "Economy, damage tracking, teammates, war and guard upgrades.");
+                    + "Opens Crownlands' in-game menu: ownership, wars, upgrades, horns, allies, forts and guards.");
+            sender.sendMessage(ChatColor.GRAY + "During battles, play your assigned goat horn to command your team.");
         }
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
