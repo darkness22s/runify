@@ -85,7 +85,7 @@ weaponlimiter_primaries: 2
 weaponlimiter_secondaries: 2
 enableCrafting: true
 enableShop: true
-AUTO-UPDATE: true
+AUTO-UPDATE: false # Runify must never be replaced by upstream QualityArmory
 Swap-Reload-and-Shooting-Controls: false
 Order-Shop-By-Price: false
 enable_lore_gun-info_messages: true
