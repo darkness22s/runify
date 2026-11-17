@@ -967,7 +967,7 @@ public final class TerritoryCivilizations implements Listener {
         private final int[] radii = {192,256,384,512,768,1024,1536};
 
         private enum Screen {
-            HOME, CREATE, SHOP, HORNS, WAR, FORTS, DAMAGE, ALLIES, RIVALS, GUARDS, TOOLS
+            HOME, CREATE, OVERVIEW, SHOP, HORNS, WAR, FORTS, DAMAGE, ALLIES, RIVALS, GUARDS, TOOLS
         }
 
         private final class View implements InventoryHolder {
@@ -1025,6 +1025,7 @@ public final class TerritoryCivilizations implements Listener {
             switch(screen) {
                 case HOME: home(v,player,c);break;
                 case CREATE: creation(v,player);break;
+                case OVERVIEW: overview(v,player,c);break;
                 case SHOP: upgrades(v,player,c);break;
                 case HORNS: horns(v,player,c);break;
                 case WAR: war(v,player,c);break;
@@ -1086,6 +1087,31 @@ public final class TerritoryCivilizations implements Listener {
             if(player.hasPermission("qualityarmory.civ.manage"))
                 slot(v,46,Material.BEACON,ChatColor.AQUA+"Create Another Civilization",
                         "Choose an online owner and territory radius");
+        }
+
+        private void overview(View v,Player viewer,Civ c) {
+            if(c==null)return;
+            slot(v,4,Material.BEACON,ChatColor.GOLD+"Territory Overview",
+                    "Owner: "+Bukkit.getOfflinePlayer(c.owner).getName(),
+                    "Radius: "+c.radius+" blocks",
+                    "Claim center: "+c.centerX+", "+c.centerZ,
+                    c.complete?"Construction complete":"Construction in progress");
+            slot(v,11,Material.EMERALD,ChatColor.GREEN+"Economy",
+                    "Wallet: "+coins(viewer.getUniqueId())+" coins",
+                    "Treasury: "+c.treasury+" coins");
+            slot(v,13,Material.CROSSBOW,ChatColor.GOLD+"Military Upgrades",
+                    "Cannons: level "+c.cannonLevel+"/5",
+                    "Weapons: level "+c.weaponLevel+"/5",
+                    "VexBot guards: "+c.hiredGuards);
+            slot(v,15,Material.STONE_BRICKS,ChatColor.AQUA+"Outposts: "+c.sites.size(),
+                    "Click to see every fort and coordinate");
+            int damage=0;
+            for(Site site:c.sites)if(site.hp<100)damage++;
+            slot(v,30,Material.REDSTONE,damage==0?ChatColor.GREEN+"No Damaged Forts":
+                    ChatColor.RED+""+damage+" Damaged Forts",
+                    "Click to inspect the damage report");
+            slot(v,32,Material.EMERALD_BLOCK,ChatColor.GREEN+"Open the Shop",
+                    "Invest your battle coins in upgrades");
         }
 
         private void creation(View v,Player viewer) {
@@ -1295,7 +1321,7 @@ public final class TerritoryCivilizations implements Listener {
                     if(c==null) {
                         if(index==22) next=Screen.CREATE;
                     } else {
-                        if(index==10){status(player,c);return;}
+                        if(index==10)next=Screen.OVERVIEW;
                         if(index==12)next=Screen.SHOP;
                         if(index==14)next=Screen.HORNS;
                         if(index==16)next=Screen.WAR;
@@ -1340,6 +1366,11 @@ public final class TerritoryCivilizations implements Listener {
                         },1);
                     }
                     return;
+                case OVERVIEW:
+                    if(index==15)next=Screen.FORTS;
+                    if(index==30)next=Screen.DAMAGE;
+                    if(index==32)next=Screen.SHOP;
+                    break;
                 case SHOP:
                     if(c==null)return;
                     String purchase=null;
