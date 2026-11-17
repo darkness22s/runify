@@ -46,20 +46,54 @@ QualityArmory seamlessly integrates with popular plugins:
 
 ---
 
-## 📥 Download
+## 📥 Download — Runify for Minecraft 1.21.11 ONLY
 
-[![Download on Modrinth](https://img.shields.io/badge/Download-Modrinth-%231BD96A?style=for-the-badge&logo=modrinth)](https://modrinth.com/plugin/qualityarmory)
-[![Dev Builds](https://img.shields.io/badge/Download-Dev%20Builds-blue?style=for-the-badge&logo=github)](https://ci.codemc.io/job/ZombieStriker/job/QualityArmory/lastSuccessfulBuild/artifact/target/QualityArmory.jar)
+**Use the Runify release, not the upstream QualityArmory/Modrinth JAR.**
+Upstream QualityArmory lacks all the Runify civilization, tank and cannon
+features. Builds from this project's `main` branch may also be outdated
+until the Runify PR is merged.
 
----
+- [Runify 1.21.11 release — plugin JAR and matching texture pack](https://github.com/darkness22s/runify/releases/tag/runify-1.21.11)
+- [Direct plugin JAR](https://github.com/darkness22s/runify/releases/download/runify-1.21.11/Runify-QualityArmory-1.21.11.jar)
+- [Direct 1.21.11 gun texture pack ZIP](https://github.com/darkness22s/runify/releases/download/runify-1.21.11/Runify-ResourcePack-1.21.11.zip)
+- [GitHub Actions build results](https://github.com/darkness22s/runify/actions/workflows/build-runify.yml)
 
-## 🚀 Quick Start
+The public release files are generated automatically **after the updated code
+passes CI and lands on `main`**. PR builds are available as Actions artifacts,
+but are not a public release. The Runify JAR registers the normal plugin
+name `QualityArmory` for ecosystem compatibility.
 
-1. **Download** the latest QualityArmory.jar
-2. **Place** it in your server's `plugins` folder
-3. **Start** your server
-4. **Configure** guns, ammo, and items in the generated config files
-5. **Enjoy!** No additional dependencies required
+## 🚀 Install on a Paper 1.21.11 server
+
+1. Shut down the server. Use **Paper 1.21.11 and Java 21** (not a Fabric
+   client mod, older server build, or a server running from the `mods/` folder).
+2. Remove any old `QualityArmory.jar` or `Runify*.jar` from `plugins/`
+   so **only one** QualityArmory-derived plugin remains.
+3. Copy **Runify-QualityArmory-1.21.11.jar** into `plugins/` and start
+   the server. In server console look for **"Runify Crownlands registered"**.
+4. Run `/plugins`: **QualityArmory** should be green. As a server OP, run
+   **`/qa civ`** to open the in-game civilization management menu.
+   `/cua` and `/runify` are also aliases for `/qa`.
+5. Accept the server's resource-pack prompt. The default Runify URL
+   points to the **matching 1.21.11 pack from this project's release**.
+   The texture ZIP is a separate asset fetched over HTTPS by the client,
+   *not* textures stored inside the JAR or your server's `mods/` folder.
+   If you already declined it, enable Server Resource Packs in Minecraft's
+   multiplayer server settings and reconnect.
+
+**Important:** Runify has disabled upstream QualityArmory auto-updates so
+that the custom tank/war code cannot silently be overwritten by an ordinary
+QualityArmory release. It also migrates the old QualityArmory 2.0.2 Dropbox
+pack setting on existing installations. If you use your own merged texture
+pack, specify its publicly accessible direct ZIP URL in
+`plugins/QualityArmory/config.yml` with
+`DefaultResourcepackOverride: true`.
+
+The `/qa civ` menu and terrain-generation features are an **OP-only**
+permission by default (`qualityarmory.civ`); remove that restriction
+through a permission manager if desired. **Do not generate outposts on a
+world without a backup.** VexBot Paper for Minecraft 1.21.11 is optional
+but required for NPC tank-driver/cannon-crew behavior.
 
 ### Optional Enhancements
 
@@ -93,7 +127,7 @@ Add QualityArmory to your project:
 </dependency>
 ```
 
-> **📦 Version Note:** Replace `VERSION` with the latest release version
+> **📦 Version Note:** For Runify, use the release JAR linked above, not an upstream QualityArmory binary; this Maven snippet documents the upstream API dependency only.
 >
 > [![GitHub Release](https://img.shields.io/github/v/release/Lorenzo0111/QualityArmory?style=logo=github&color=lightgray&label=Latest%20Version)](https://github.com/Lorenzo0111/QualityArmory/releases/latest)
 
