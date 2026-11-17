@@ -1052,14 +1052,14 @@ public class QAMain extends JavaPlugin {
         // Existing installations still have the ancient v2.0.2 Dropbox URL.
         // Upgrade that known-broken default without overriding any custom pack URL.
         String configuredPack = getConfig().getString("DefaultResourcepack");
-        if (configuredPack != null && configuredPack.contains("QualityArmoryV2.0.2.zip")) {
+        if (!overrideURL || (configuredPack != null && configuredPack.contains("QualityArmoryV2.0.2.zip"))) {
             getConfig().set("DefaultResourcepack",
                     "https://github.com/darkness22s/runify/releases/download/runify-1.21.11/"
                             + "Runify-ResourcePack-1.21.11.zip");
             getConfig().set("DefaultResourcepackOverride", true);
             overrideURL = true;
             saveTheConfig = true;
-            getLogger().info("Migrated old QualityArmory resource-pack URL to Runify's 1.21.11 pack.");
+            getLogger().info("Migrated legacy resource-pack settings to Runify's 1.21.11 pack.");
         }
 
         enableIronSightsON_RIGHT_CLICK = (boolean) a("IronSightsOnRightClick", false);
