@@ -1,19 +1,22 @@
 main: me.zombie_striker.qg.QAMain
 version: ${project.version}
-api-version: 1.13
+api-version: '1.21.11'
 folia-supported: true
 name: QualityArmory
+description: Runify QualityArmory with Crownlands civilization warfare
 commands:
   QualityArmory:
-    description: Main command for QA
-    aliases: [qa]
+    description: QualityArmory and Runify command menu
+    usage: /qa
+    aliases: [qa, cua, runify]
 permissions:
   qualityarmory.*:
     description: Gives access to all QualityArmory commands
     children:
       qualityarmory.admin: true
   qualityarmory.admin:
-    description: 'Gives access to all admin commands for QA'
+    description: Gives access to all admin commands for QA
+    default: op
     children:
       qualityarmory.give: true
       qualityarmory.drop: true
@@ -25,16 +28,32 @@ permissions:
       qualityarmory.default: true
       qualityarmory.debugmessages: true
       qualityarmory.outpost: true
+      qualityarmory.civ: true
+      qualityarmory.civ.manage: true
+      qualityarmory.cannon: true
+      qualityarmory.tank: true
+  qualityarmory.tank:
+    description: Deploy a drivable 3D tank with a heavy cannon
+    default: op
+  qualityarmory.cannon:
+    description: Deploy a stand-alone interactive 3D siege cannon
+    default: op
+  qualityarmory.civ.manage:
+    description: Assign civilization ownership to another online player
+    default: op
+  qualityarmory.civ:
+    description: Open and manage Crownlands civilization warfare
+    default: op
   qualityarmory.outpost:
-    description: Allows building a 33x33 siege outpost at the player's position
+    description: Build a custom 33x33 siege outpost at the player's position
     default: op
   qualityarmory.default:
-    description: 'Gives access to all QualityArmory default commands such as shooting crafting and shopping'
+    description: QualityArmory shooting, crafting and shopping permissions
     children:
       qualityarmory.craft: true
       qualityarmory.shop: true
       qualityarmory.usegun: true
-softdepend: [Vault, PlaceholderAPI, ChestShop, Parties, WorldGuard, ViaVersion, ViaRewind, LightAPI, Citizens, ProtocolLib, SunLight-Core, ItemBridge, Sentinel, Spartan, Towny, Residence, Matrix, QuickShop, Vulcan, CoreProtect, Mimic, GriefPrevention, Kingdoms, NBTAPI, MythicMobs]
+softdepend: [VexBot, Vault, PlaceholderAPI, ChestShop, Parties, WorldGuard, ViaVersion, ViaRewind, LightAPI, Citizens, ProtocolLib, SunLight-Core, ItemBridge, Sentinel, Spartan, Towny, Residence, Matrix, QuickShop, Vulcan, CoreProtect, Mimic, GriefPrevention, Kingdoms, NBTAPI, MythicMobs]
 authors:
   - Zombie_Striker
   - Lorenzo0111

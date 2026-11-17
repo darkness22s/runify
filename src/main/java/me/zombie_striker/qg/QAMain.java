@@ -49,6 +49,9 @@ import me.zombie_striker.qg.npcs.Gunner;
 import me.zombie_striker.qg.npcs.GunnerTrait;
 import me.zombie_striker.qg.npcs_sentinel.SentinelQAHandler;
 import me.zombie_striker.qg.structures.SiegeOutpost;
+import me.zombie_striker.qg.structures.SiegeCannon;
+import me.zombie_striker.qg.structures.TerritoryCivilizations;
+import me.zombie_striker.qg.vehicles.SiegeTankManager;
 import me.zombie_striker.qg.utils.FoliaRunnable;
 import me.zombie_striker.qg.utils.LocalUtils;
 import org.bukkit.*;
@@ -76,6 +79,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class QAMain extends JavaPlugin {
+
+    private SiegeTankManager siegeTanks;
+    private SiegeCannon siegeCannons;
+    private TerritoryCivilizations civilizationManager;
+
+    public TerritoryCivilizations getTerritories() { return civilizationManager; }
+    public SiegeTankManager getTanks() { return siegeTanks; }
 
     private static String changelog = null;
 
@@ -258,7 +268,7 @@ public class QAMain extends JavaPlugin {
     public static boolean hasProtocolLib = false;
     public static boolean hasViaVersion = false;
     public static boolean hasViaRewind = false;
-    public static boolean AUTOUPDATE = true;
+    public static boolean AUTOUPDATE = false;
     public static boolean SWAP_TO_LMB_SHOOT = true;
     public static boolean SHOW_BULLETS_LORE = false;
     public static boolean ENABLE_LORE_INFO = true;
@@ -514,6 +524,9 @@ public class QAMain extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (civilizationManager != null) civilizationManager.shutdown();
+        if (siegeCannons != null) siegeCannons.save();
+        if (siegeTanks != null) siegeTanks.shutdown();
         for (Entry<MaterialStorage, CustomBaseObject> misc : miscRegister.entrySet()) {
             if (misc instanceof ThrowableItems) {
                 for (Entry<Entity, ThrowableHolder> e : ThrowableItems.throwItems.entrySet()) {
@@ -624,6 +637,14 @@ public class QAMain extends JavaPlugin {
             }
         }
 
+        siegeTanks = new SiegeTankManager(this);
+        Bukkit.getPluginManager().registerEvents(siegeTanks, this);
+        siegeCannons = new SiegeCannon(this);
+        civilizationManager = new TerritoryCivilizations(this, siegeCannons);
+        Bukkit.getPluginManager().registerEvents(siegeCannons, this);
+        Bukkit.getPluginManager().registerEvents(civilizationManager, this);
+        getLogger().info("Runify Crownlands registered. Commands: /qa, /cua, /runify; open /qa civ.");
+
         Bukkit.getPluginManager().registerEvents(new QAListener(), this);
         Bukkit.getPluginManager().registerEvents(new GunDamageHandler(), this);
         Bukkit.getPluginManager().registerEvents(new AimManager(), this);
@@ -643,10 +664,13 @@ public class QAMain extends JavaPlugin {
         } catch (Exception | Error e) {
         }
 
-        try {
-            if (AUTOUPDATE)
-                GithubUpdater.autoUpdate(this, "Lorenzo0111", "QualityArmory", "QualityArmory.jar");
-        } catch (Exception e) {
+        // RUNIFY: never silently replace this fork with a vanilla QualityArmory
+        // release. That upstream auto-updater would erase all Crownlands / tank
+        // features after a restart, despite a successful local installation.
+        if (AUTOUPDATE) {
+            getLogger().warning("Runify disables upstream QualityArmory auto-updates. "
+                    + "Install only verified Runify builds from its own GitHub release.");
+            AUTOUPDATE = false;
         }
 
         Metrics metrics = new Metrics(this, 1699);
@@ -932,7 +956,8 @@ public class QAMain extends JavaPlugin {
         enableCrafting = (boolean) a("enableCrafting", true);
         enableShop = (boolean) a("enableShop", true);
 
-        AUTOUPDATE = (boolean) a("AUTO-UPDATE", true);
+        AUTOUPDATE = false;
+        a("AUTO-UPDATE", false);
         SWAP_TO_LMB_SHOOT = !(boolean) a("Swap-Reload-and-Shooting-Controls", false);
 
         orderShopByPrice = (boolean) a("Order-Shop-By-Price", orderShopByPrice);
@@ -1023,7 +1048,19 @@ public class QAMain extends JavaPlugin {
         } catch (Exception | Error e) {
         }
 
-        overrideURL = (boolean) a("DefaultResourcepackOverride", false);
+        overrideURL = (boolean) a("DefaultResourcepackOverride", true);
+        // Existing installations still have the ancient v2.0.2 Dropbox URL.
+        // Upgrade that known-broken default without overriding any custom pack URL.
+        String configuredPack = getConfig().getString("DefaultResourcepack");
+        if (!overrideURL || (configuredPack != null && configuredPack.contains("QualityArmoryV2.0.2.zip"))) {
+            getConfig().set("DefaultResourcepack",
+                    "https://github.com/darkness22s/runify/releases/download/runify-1.21.11/"
+                            + "Runify-ResourcePack-1.21.11.zip");
+            getConfig().set("DefaultResourcepackOverride", true);
+            overrideURL = true;
+            saveTheConfig = true;
+            getLogger().info("Migrated legacy resource-pack settings to Runify's 1.21.11 pack.");
+        }
 
         enableIronSightsON_RIGHT_CLICK = (boolean) a("IronSightsOnRightClick", false);
         if (getConfig().contains("SwapSneakToSingleFile")) {
@@ -1235,6 +1272,12 @@ public class QAMain extends JavaPlugin {
                 s.add("dumpItem");
             if (sender.hasPermission("qualityarmory.outpost") && b("outpost", args[0]))
                 s.add("outpost");
+            if (sender.hasPermission("qualityarmory.civ") && b("civ", args[0]))
+                s.add("civ");
+            if (sender.hasPermission("qualityarmory.cannon") && b("cannon", args[0]))
+                s.add("cannon");
+            if (sender.hasPermission("qualityarmory.tank") && b("tank", args[0]))
+                s.add("tank");
             if (enableShop)
                 if (b("shop", args[0]))
                     s.add("shop");
@@ -1253,6 +1296,9 @@ public class QAMain extends JavaPlugin {
         }
         if (args.length == 2) {
             List<String> s = new ArrayList<String>();
+            // Civilization management is a single GUI entry point: /qa civ.
+            // Keep legacy subcommands callable without suggesting a long list.
+            if (args[0].equalsIgnoreCase("civ")) return Collections.emptyList();
             if (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("drop")) {
                 for (Entry<MaterialStorage, Gun> e : gunRegister.entrySet()) {
                     if (e.getValue() instanceof AttachmentBase) {
@@ -1273,6 +1319,8 @@ public class QAMain extends JavaPlugin {
             }
             return s;
         } else if (args.length == 3) {
+            if (args[0].equalsIgnoreCase("civ") && sender.hasPermission("qualityarmory.civ"))
+                return civilizationManager.complete(args);
             if (args[0].equalsIgnoreCase("give")) {
                 return null;
             }
@@ -1284,7 +1332,48 @@ public class QAMain extends JavaPlugin {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("QualityArmory")) {
+            if (args.length == 0) {
+                // Previously /qa silently returned true, making an installed
+                // plugin appear unresponsive even when Bukkit had registered it.
+                if (sender instanceof Player
+                        && sender.hasPermission("qualityarmory.civ")
+                        && civilizationManager != null) {
+                    civilizationManager.command((Player) sender, new String[]{"civ"});
+                } else {
+                    sendHelp(sender);
+                }
+                return true;
+            }
             if (args.length > 0) {
+                if (args[0].equalsIgnoreCase("tank")) {
+                    if (!sender.hasPermission("qualityarmory.tank")) sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    else if (!(sender instanceof Player)) sender.sendMessage(prefix + ChatColor.RED + "Only players may deploy tanks.");
+                    else if (args.length != 1) sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa tank");
+                    else siegeTanks.spawn((Player) sender);
+                    return true;
+                }
+                if (args[0].equalsIgnoreCase("cannon")) {
+                    if (!sender.hasPermission("qualityarmory.cannon")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only players can deploy siege cannons.");
+                    } else if (args.length != 1) {
+                        sender.sendMessage(prefix + ChatColor.YELLOW + "Usage: /qa cannon");
+                    } else {
+                        siegeCannons.spawnStandalone((Player) sender);
+                    }
+                    return true;
+                }
+                if (args[0].equalsIgnoreCase("civ")) {
+                    if (!sender.hasPermission("qualityarmory.civ")) {
+                        sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
+                    } else if (!(sender instanceof Player)) {
+                        sender.sendMessage(prefix + ChatColor.RED + "Only players can manage civilizations.");
+                    } else {
+                        civilizationManager.command((Player) sender, args);
+                    }
+                    return true;
+                }
                 if (args[0].equalsIgnoreCase("outpost")) {
                     if (!sender.hasPermission("qualityarmory.outpost")) {
                         sender.sendMessage(prefix + ChatColor.RED + S_NOPERM);
@@ -1725,6 +1814,17 @@ public class QAMain extends JavaPlugin {
         if (sender.hasPermission("qualityarmory.outpost"))
             sender.sendMessage(ChatColor.GOLD + "/QA outpost: " + ChatColor.GRAY
                     + "Builds a 33x33, multi-storey siege arena at your feet (overwrites terrain).");
+        if (sender.hasPermission("qualityarmory.cannon"))
+            sender.sendMessage(ChatColor.GOLD + "/QA cannon: " + ChatColor.GRAY
+                    + "Deploy a standalone 3D siege cannon at your feet.");
+        if (sender.hasPermission("qualityarmory.tank"))
+            sender.sendMessage(ChatColor.GOLD + "/QA tank: " + ChatColor.GRAY
+                    + "Deploy a drivable 3D siege tank with heavy cannon.");
+        if (sender.hasPermission("qualityarmory.civ")) {
+            sender.sendMessage(ChatColor.GOLD + "/QA civ: " + ChatColor.GRAY
+                    + "Opens Crownlands' in-game menu: ownership, wars, upgrades, horns, allies, forts and guards.");
+            sender.sendMessage(ChatColor.GRAY + "During battles, play your assigned goat horn to command your team.");
+        }
 
         sender.sendMessage(ChatColor.GOLD + "/QA getResourcepack: " + ChatColor.GRAY
                 + "Sends the link to the resourcepack. Disables the resourcepack prompts until /qa sendResourcepack is used");

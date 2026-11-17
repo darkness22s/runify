@@ -12,9 +12,11 @@ enable_permssionsToShoot: false
 
 #Resourcepack settings.
 
+# Runify hosts a version-matched QualityArmory weapons pack on its own release.
+# Do not use the obsolete pre-1.21 Dropbox pack; this is the public HTTPS ZIP.
 useDefaultResourcepack: true
-DefaultResourcepackOverride: false
-DefaultResourcepack: https://www.dropbox.com/s/g5rkfdcmlax9w6a/QualityArmoryV2.0.2.zip?dl=1
+DefaultResourcepackOverride: true
+DefaultResourcepack: https://github.com/darkness22s/runify/releases/download/runify-1.21.11/Runify-ResourcePack-1.21.11.zip
 KickPlayerIfDeniedResourcepack: false
 sendOnJoin: true
 sendTitleOnJoin: false
@@ -85,7 +87,7 @@ weaponlimiter_primaries: 2
 weaponlimiter_secondaries: 2
 enableCrafting: true
 enableShop: true
-AUTO-UPDATE: true
+AUTO-UPDATE: false # Runify must never be replaced by upstream QualityArmory
 Swap-Reload-and-Shooting-Controls: false
 Order-Shop-By-Price: false
 enable_lore_gun-info_messages: true
@@ -105,3 +107,14 @@ IronSightsOnRightClick: false
 SwapSneakToSingleFile: false
 DestructableMaterials:
   - MATERIAL_NAME_HERE
+# The cannon scales its explosion and AoE damage from the installed RPG.
+# Fallback only used when no RPG gun has been registered by an expansion pack.
+cannon:
+  fallbackRpgDamage: 20
+
+# Runify tank gameplay (Minecraft 1.21.11 Paper / Java 21)
+tank:
+  health: 400
+  movementSpeed: 0.20
+  chargeSeconds: 2
+  reloadSeconds: 35
