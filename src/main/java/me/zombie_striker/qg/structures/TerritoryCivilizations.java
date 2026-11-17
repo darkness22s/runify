@@ -21,6 +21,10 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -56,6 +60,7 @@ public final class TerritoryCivilizations implements Listener {
     private final SiegeCannon siegeCannons;
     private final VexbotGuardBridge guards;
     private final VexbotVehicleController vehicleGuards;
+    private final CivilizationGui gui;
     private final File dataFile;
     private final Map<UUID,Civ> civilizations = new ConcurrentHashMap<>();
     private final Map<UUID,Integer> wallets = new ConcurrentHashMap<>();
@@ -119,6 +124,8 @@ public final class TerritoryCivilizations implements Listener {
         this.dataFile=new File(plugin.getDataFolder(),"territories.yml");
         load();
         this.vehicleGuards = new VexbotVehicleController(plugin,this,cannons,guards);
+        this.gui = new CivilizationGui();
+        Bukkit.getPluginManager().registerEvents(gui,plugin);
     }
 
     public void shutdown() { vehicleGuards.shutdown(); save(); }
@@ -255,7 +262,7 @@ public final class TerritoryCivilizations implements Listener {
     }
 
     public void command(Player player,String[] args) {
-        if(args.length==1){create(player,player,DEFAULT_RADIUS);return;}
+        if(args.length==1){gui.open(player);return;}
         String action=args[1].toLowerCase(Locale.ROOT);
         if("create".equals(action)) {
             if(args.length<3 || args.length>4){
@@ -304,21 +311,9 @@ public final class TerritoryCivilizations implements Listener {
         }
     }
 
+    // The entire player workflow is now click-driven. Old subcommands remain
+    // accepted for server scripts, but are not suggested to players.
     public List<String> complete(String[] args) {
-        if(args.length==2) {
-            List<String> choices=Arrays.asList("create","resume","guard","status","wars","locate","damage","balance","shop","upgrade","horn","target","ally");
-            List<String> result=new ArrayList<>();
-            for(String s:choices)if(s.startsWith(args[1].toLowerCase(Locale.ROOT)))result.add(s);
-            return result;
-        }
-        if(args.length==3&&args[1].equalsIgnoreCase("upgrade"))
-            return Arrays.asList("cannon","weapon","outpost","radius","guards","repair");
-        if(args.length==3&&args[1].equalsIgnoreCase("horn"))
-            return Arrays.asList("attack","retreat","victory");
-        if(args.length==3&&args[1].equalsIgnoreCase("guard"))
-            return Arrays.asList("list","bind","unbind");
-        if(args.length==5&&args[1].equalsIgnoreCase("guard")&&args[2].equalsIgnoreCase("bind"))
-            return Arrays.asList("tank","cannon");
         return Collections.emptyList();
     }
 
@@ -370,7 +365,7 @@ public final class TerritoryCivilizations implements Listener {
                     if(pending.decrementAndGet()==0) {
                         c.complete=true;save();
                         FoliaRunnable.runEntityTask(plugin,owner,()->owner.sendMessage(ChatColor.GREEN
-                                +"Civilization ready! Set your attack, retreat, and victory horns with /qa civ horn."));
+                                +"Civilization ready! Use /qa civ to assign battle horns and buy upgrades."));
                     }
                 });
             }
@@ -399,7 +394,7 @@ public final class TerritoryCivilizations implements Listener {
                 creating.remove(c.owner);
                 save();
                 FoliaRunnable.runEntityTask(plugin,player,()->player.sendMessage(
-                        ChatColor.GREEN+"Resumed construction complete. Review /qa civ status."));
+                        ChatColor.GREEN+"Resumed construction complete. Open /qa civ to review your forts."));
             }
         });
         player.sendMessage(ChatColor.YELLOW+"Resuming "+unfinished.size()+" unfinished outposts.");
@@ -960,4 +955,492 @@ public final class TerritoryCivilizations implements Listener {
                     Math.min(75,e.getValue()));
         }
     }
+
+    /**
+     * The single-entry-point civilization UI. Custom InventoryHolder identity
+     * and viewer UUID prevent ordinary renamed chests or other plugins from
+     * triggering economy actions. Every click is re-authorized against the
+     * current civilization state rather than trusting stale menu metadata.
+     */
+    private final class CivilizationGui implements Listener {
+        private static final int SIZE = 54;
+        private final int[] radii = {192,256,384,512,768,1024,1536};
+
+        private enum Screen {
+            HOME, CREATE, SHOP, HORNS, WAR, FORTS, DAMAGE, ALLIES, RIVALS, GUARDS, TOOLS
+        }
+
+        private final class View implements InventoryHolder {
+            final Screen screen;
+            final UUID viewer, chosenOwner;
+            final int radius, page;
+            final Map<Integer,UUID> listedPlayers = new HashMap<>();
+            final Map<Integer,String> listedForts = new HashMap<>();
+            private Inventory contents;
+
+            View(Screen screen, Player viewer, UUID chosenOwner, int radius, int page) {
+                this.screen = screen;
+                this.viewer = viewer.getUniqueId();
+                this.chosenOwner = chosenOwner;
+                this.radius = radius;
+                this.page = Math.max(0,page);
+            }
+
+            @Override public Inventory getInventory() { return contents; }
+        }
+
+        void open(Player player) {
+            show(player,Screen.HOME,player.getUniqueId(),DEFAULT_RADIUS,0);
+        }
+
+        private ItemStack icon(Material material,String name,String... details) {
+            ItemStack item = new ItemStack(material);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(name);
+            List<String> lore = new ArrayList<>();
+            for(String detail:details)lore.add(ChatColor.GRAY+detail);
+            meta.setLore(lore);
+            item.setItemMeta(meta);
+            return item;
+        }
+
+        private void slot(View view,int index,Material material,String name,String... description) {
+            view.contents.setItem(index,icon(material,name,description));
+        }
+
+        private void base(View view,String heading) {
+            view.contents=Bukkit.createInventory(view,SIZE,ChatColor.DARK_GREEN+"Crownlands "+heading);
+            ItemStack border=icon(Material.GRAY_STAINED_GLASS_PANE," ");
+            for(int i=0;i<SIZE;i++)view.contents.setItem(i,border);
+            if(view.screen!=Screen.HOME) slot(view,49,Material.ARROW,ChatColor.YELLOW+"Back","Return to the civilization menu");
+            else slot(view,49,Material.BARRIER,ChatColor.RED+"Close","Leave the menu");
+        }
+
+        private void show(Player player,Screen screen,UUID chosenOwner,int radius,int page) {
+            if(!player.isOnline())return;
+            Civ c=memberCiv(player);
+            if(c==null && screen!=Screen.CREATE && screen!=Screen.HOME) screen=Screen.HOME;
+            View v=new View(screen,player,chosenOwner,radius,page);
+            base(v,screen==Screen.HOME?"":screen.name().toLowerCase(Locale.ROOT));
+            switch(screen) {
+                case HOME: home(v,player,c);break;
+                case CREATE: creation(v,player);break;
+                case SHOP: upgrades(v,player,c);break;
+                case HORNS: horns(v,player,c);break;
+                case WAR: war(v,player,c);break;
+                case FORTS: forts(v,c,false);break;
+                case DAMAGE: forts(v,c,true);break;
+                case ALLIES: players(v,player,c,false);break;
+                case RIVALS: players(v,player,c,true);break;
+                case GUARDS: guardRoster(v,player,c);break;
+                case TOOLS: tools(v,player);break;
+            }
+            player.openInventory(v.contents);
+        }
+
+        private void later(Player player,Screen screen,UUID owner,int radius,int page) {
+            FoliaRunnable.runEntityTaskLater(plugin,player,()->
+                    show(player,screen,owner,radius,page),1);
+        }
+
+        private boolean owner(Player player,Civ civ) {
+            if(civ!=null && civ.owner.equals(player.getUniqueId()))return true;
+            player.sendMessage(ChatColor.RED+"Only the civilization owner can do that.");
+            return false;
+        }
+
+        private void home(View v,Player player,Civ c) {
+            if(c==null) {
+                slot(v,22,Material.BEACON,ChatColor.GREEN+"Create a Civilization",
+                        "Choose an owner and claim radius","Then build widely scattered outposts");
+                slot(v,13,Material.MAP,ChatColor.GOLD+"Welcome to Crownlands",
+                        "Everything is managed from this one menu",
+                        "Battle orders are played with assigned goat horns");
+                return;
+            }
+            slot(v,4,Material.EMERALD,ChatColor.GREEN+"Your Coins: "+coins(player.getUniqueId()),
+                    "Civilization treasury: "+c.treasury,
+                    "Owner: "+Bukkit.getOfflinePlayer(c.owner).getName(),
+                    "Radius: "+c.radius+" blocks",
+                    "Outposts: "+c.sites.size());
+            slot(v,10,Material.MAP,ChatColor.AQUA+"Civilization Overview",
+                    "Check owner, size and defensive structures");
+            slot(v,12,Material.EMERALD_BLOCK,ChatColor.GREEN+"Upgrades & Shop",
+                    "Cannons, guns, new outposts, guards and repairs");
+            slot(v,14,Material.GOAT_HORN,ChatColor.GOLD+"Assign Battle Horns",
+                    "Choose attack, retreat and victory horns");
+            slot(v,16,Material.IRON_SWORD,ChatColor.RED+"Wars & Enemies",
+                    "Active wars, target selection, combat orders");
+            slot(v,28,Material.COMPASS,ChatColor.YELLOW+"Find Outposts",
+                    "Locate all your forts with a click");
+            slot(v,30,Material.CRACKED_STONE_BRICKS,ChatColor.RED+"Damage Report",
+                    "See damaged defenses and impact locations");
+            slot(v,32,Material.PLAYER_HEAD,ChatColor.AQUA+"Allies & Team",
+                    "Invite or remove online teammates");
+            slot(v,34,Material.IRON_GOLEM_SPAWN_EGG,ChatColor.GREEN+"VexBot Guards",
+                    "Manage tank drivers and cannon gunners");
+            slot(v,40,Material.TNT,ChatColor.GOLD+"Tanks & Cannons",
+                    "Deploy a playable 3D tank or cannon");
+            if(!c.complete)slot(v,38,Material.CLOCK,ChatColor.YELLOW+"Resume Construction",
+                    "Retry building any unfinished outposts");
+            if(player.hasPermission("qualityarmory.civ.manage"))
+                slot(v,46,Material.BEACON,ChatColor.AQUA+"Create Another Civilization",
+                        "Choose an online owner and territory radius");
+        }
+
+        private void creation(View v,Player viewer) {
+            Player selected=Bukkit.getPlayer(v.chosenOwner);
+            String ownerName=selected==null?"Offline - choose another player":selected.getName();
+            slot(v,13,Material.MAP,ChatColor.GOLD+"New Civilization",
+                    "Construction creates a capital and five distant outposts",
+                    "WARNING: Structures will overwrite terrain!",
+                    "Use a dedicated battle world");
+            slot(v,20,Material.PLAYER_HEAD,ChatColor.AQUA+"Owner: "+ownerName,
+                    viewer.hasPermission("qualityarmory.civ.manage")?
+                            "Click to cycle online players":"This civilization will belong to you");
+            slot(v,24,Material.COMPASS,ChatColor.YELLOW+"Radius: "+v.radius+" blocks",
+                    "Click to choose the next territory radius",
+                    "Valid range: 192 to 1536 blocks");
+            slot(v,31,Material.LIME_CONCRETE,ChatColor.GREEN+"Create at Your Position",
+                    "Owner: "+ownerName,"Radius: "+v.radius,
+                    "Click to confirm terrain construction");
+        }
+
+        private void upgrades(View v,Player player,Civ c) {
+            if(c==null)return;
+            slot(v,4,Material.EMERALD,ChatColor.GOLD+"Coins: "+coins(player.getUniqueId()),
+                    "Treasury: "+c.treasury,"Purchases use wallet first, then treasury");
+            slot(v,10,Material.BLAST_FURNACE,ChatColor.GREEN+"Upgrade Cannons - 300",
+                    "Level: "+c.cannonLevel+"/5",
+                    "+25% damage and -3 seconds reload per level",
+                    "Click to buy");
+            slot(v,12,Material.IRON_SWORD,ChatColor.GREEN+"Upgrade Weapons - 250",
+                    "Level: "+c.weaponLevel+"/5",
+                    "+10% gun damage per level",
+                    "Click to buy");
+            slot(v,14,Material.STONE_BRICKS,ChatColor.GREEN+"Build New Outpost - 500+",
+                    "Owned sites: "+c.sites.size(),"Place a distant fortress with a cannon",
+                    "Click to purchase");
+            slot(v,16,Material.MAP,ChatColor.GREEN+"Expand Territory - 450",
+                    "Radius: "+c.radius+" blocks","+128 blocks per upgrade",
+                    "Click to purchase");
+            slot(v,29,Material.IRON_GOLEM_SPAWN_EGG,ChatColor.GREEN+"Hire VexBot Guards - 250",
+                    "Guards: "+c.hiredGuards+"/24",
+                    "Hire two guards plus a guarded tank",
+                    "Click to purchase");
+            slot(v,33,Material.ANVIL,ChatColor.GREEN+"Repair Nearby Fort - 120",
+                    "Stand within 48 blocks of damaged fort",
+                    "Rebuild damaged walls and core",
+                    "Click to repair");
+        }
+
+        private void horns(View v,Player player,Civ c) {
+            if(c==null)return;
+            slot(v,4,Material.PAPER,ChatColor.YELLOW+"Hold a Goat Horn in Your Main Hand",
+                    "Click one of the three orders to assign it",
+                    "Each order must use a distinct horn sound",
+                    "Playing that horn later issues the battle command");
+            for(int i=0;i<3;i++) {
+                String key=i==0?"attack":i==1?"retreat":"victory";
+                String label=i==0?"Attack":i==1?"Retreat":"Victory";
+                int slot=i==0?20:i==1?22:24;
+                slot(v,slot,Material.GOAT_HORN,ChatColor.GOLD+label+" Horn",
+                        "Assigned instrument: "+c.horns.getOrDefault(key,"Not set"),
+                        "Hold the horn, then click to assign");
+            }
+        }
+
+        private void war(View v,Player player,Civ c) {
+            if(c==null)return;
+            String selected=c.target==null?"None":String.valueOf(Bukkit.getOfflinePlayer(c.target).getName());
+            slot(v,11,Material.NETHERITE_SWORD,ChatColor.RED+"Choose Rival Civilization",
+                    "Target: "+selected,"Click to select an online enemy leader");
+            slot(v,15,Material.GOAT_HORN,ChatColor.YELLOW+"Battle Horns",
+                    "Attack, Retreat, Victory","Configure the sounds here");
+            int count=0, attack=0, defense=0;
+            for(War w:wars.values()) {
+                if(!w.attacker.equals(c.owner)&&!w.defender.equals(c.owner))continue;
+                count++;attack+=w.attackKills;defense+=w.defenseKills;
+            }
+            slot(v,13,Material.IRON_HELMET,ChatColor.GOLD+"Active Wars: "+count,
+                    "Attacker eliminations: "+attack,
+                    "Defender eliminations: "+defense,
+                    "Use your goat horn to command the guards");
+            slot(v,29,Material.SHIELD,ChatColor.AQUA+"Manage Allies",
+                    "Choose teammates who can defend your territory");
+        }
+
+        private void forts(View v,Civ c,boolean damagedOnly) {
+            if(c==null)return;
+            List<Site> sites=new ArrayList<>();
+            synchronized(c.sites) {
+                for(Site site:c.sites)if(!damagedOnly||site.hp<100)sites.add(site);
+            }
+            if(sites.isEmpty()) {
+                slot(v,22,Material.LIME_CONCRETE,ChatColor.GREEN+"No Damaged Outposts",
+                        "Your fort objectives are at full health");
+                return;
+            }
+            int index=0;
+            for(Site site:sites) {
+                if(index>=45)break;
+                v.listedForts.put(index,site.id);
+                slot(v,index,site.hp<40?Material.RED_CONCRETE:
+                                site.hp<100?Material.ORANGE_CONCRETE:Material.STONE_BRICKS,
+                        (site.hp<40?ChatColor.RED:ChatColor.GOLD)+site.name,
+                        "Integrity: "+site.hp+"/100",
+                        "Position: "+site.x+", "+(site.y+1)+", "+site.z,
+                        site.built?"Built":"Construction in progress",
+                        site.hp<100?"Last impact: "+site.lastX+", "+site.lastY+", "+site.lastZ:
+                                "No structural damage",
+                        "Click to set compass destination");
+                index++;
+            }
+        }
+
+        private void players(View v,Player viewer,Civ c,boolean rivals) {
+            if(c==null)return;
+            List<Player> choices=new ArrayList<>();
+            for(Player other:Bukkit.getOnlinePlayers()) {
+                if(other.getAddress()==null || other.getUniqueId().equals(c.owner))continue;
+                if(rivals ? civilizations.containsKey(other.getUniqueId()) :
+                        !civilizations.containsKey(other.getUniqueId())
+                            && !c.owner.equals(other.getUniqueId()))choices.add(other);
+            }
+            choices.sort(Comparator.comparing(Player::getName,String.CASE_INSENSITIVE_ORDER));
+            int from=v.page*45;
+            for(int i=from;i<Math.min(from+45,choices.size());i++) {
+                Player other=choices.get(i);
+                int at=i-from;
+                v.listedPlayers.put(at,other.getUniqueId());
+                slot(v,at,Material.PLAYER_HEAD,
+                        (c.allies.contains(other.getUniqueId())?ChatColor.GREEN:ChatColor.YELLOW)+other.getName(),
+                        rivals?"Click to target this rival commander":
+                                c.allies.contains(other.getUniqueId())?"Click to remove ally":"Click to add ally");
+            }
+            if(choices.isEmpty())slot(v,22,Material.BARRIER,ChatColor.RED+"No Eligible Players Online",
+                    rivals?"Rival civilization leaders must be online":
+                            "A teammate must be online and not own a civilization");
+            pages(v,choices.size());
+        }
+
+        private void guardRoster(View v,Player player,Civ c) {
+            if(c==null)return;
+            List<Player> bots=new ArrayList<>();
+            for(Player candidate:Bukkit.getOnlinePlayers())
+                if(candidate.getAddress()==null)bots.add(candidate);
+            bots.sort(Comparator.comparing(Player::getName,String.CASE_INSENSITIVE_ORDER));
+            for(int i=v.page*45;i<Math.min((v.page+1)*45,bots.size());i++) {
+                Player bot=bots.get(i);
+                int cell=i-v.page*45;
+                v.listedPlayers.put(cell,bot.getUniqueId());
+                VexbotVehicleController.Role role=vehicleGuards.roleFor(c.owner,bot.getUniqueId());
+                slot(v,cell,Material.PLAYER_HEAD,ChatColor.GREEN+bot.getName(),
+                        "Current role: "+(role==null?"Unassigned":role.name()),
+                        "Left-click: assign tank driver",
+                        "Right-click: assign cannon gunner",
+                        "Shift-right-click: unassign");
+            }
+            if(bots.isEmpty())slot(v,22,Material.BARRIER,ChatColor.RED+"No VexBot Guards Online",
+                    "Purchase guards in the Shop to recruit a squad",
+                    "Install VexBot Paper 1.21.11 on this server");
+            pages(v,bots.size());
+            slot(v,47,Material.EMERALD,ChatColor.GOLD+"Purchased Guards: "+c.hiredGuards,
+                    "To buy more, open the Shop",
+                    "Left/right click an online guard to set its role");
+        }
+
+        private void pages(View v,int count) {
+            if(v.page>0)slot(v,45,Material.ARROW,ChatColor.YELLOW+"Previous Page");
+            if(count>(v.page+1)*45)slot(v,53,Material.ARROW,ChatColor.YELLOW+"Next Page");
+        }
+
+        private void tools(View v,Player player) {
+            slot(v,20,Material.MINECART,ChatColor.GREEN+"Deploy 3D Tank",
+                    "Ride with WASD, fire with F",
+                    "Uses existing tank permission and protection checks");
+            slot(v,24,Material.DISPENSER,ChatColor.GOLD+"Deploy Siege Cannon",
+                    "Sneak + right-click to operate",
+                    "Uses existing cannon permission and protection checks");
+            slot(v,13,Material.PAPER,ChatColor.YELLOW+"No Extra Commands Needed",
+                    "Your civilization, upgrades, guards, and war",
+                    "are controlled from this menu");
+        }
+
+        @EventHandler(ignoreCancelled=false)
+        public void clicked(InventoryClickEvent event) {
+            if(!(event.getView().getTopInventory().getHolder() instanceof View))return;
+            View v=(View)event.getView().getTopInventory().getHolder();
+            event.setCancelled(true);
+            if(!(event.getWhoClicked() instanceof Player))return;
+            Player player=(Player)event.getWhoClicked();
+            if(!player.getUniqueId().equals(v.viewer))return;
+            int index=event.getRawSlot();
+            if(index<0||index>=SIZE)return;
+            if(index==49) {
+                if(v.screen==Screen.HOME) {
+                    FoliaRunnable.runEntityTaskLater(plugin,player,player::closeInventory,1);
+                } else later(player,Screen.HOME,v.chosenOwner,v.radius,0);
+                return;
+            }
+            Civ c=memberCiv(player);
+            if(v.screen!=Screen.HOME&&v.screen!=Screen.CREATE&&c==null) {
+                later(player,Screen.HOME,player.getUniqueId(),DEFAULT_RADIUS,0);
+                return;
+            }
+            Screen next=null;
+            int page=0;
+            switch(v.screen) {
+                case HOME:
+                    if(c==null) {
+                        if(index==22) next=Screen.CREATE;
+                    } else {
+                        if(index==10){status(player,c);return;}
+                        if(index==12)next=Screen.SHOP;
+                        if(index==14)next=Screen.HORNS;
+                        if(index==16)next=Screen.WAR;
+                        if(index==28)next=Screen.FORTS;
+                        if(index==30)next=Screen.DAMAGE;
+                        if(index==32)next=Screen.ALLIES;
+                        if(index==34)next=Screen.GUARDS;
+                        if(index==40)next=Screen.TOOLS;
+                        if(index==38&&!c.complete){resume(player,c);later(player,Screen.HOME,v.chosenOwner,v.radius,0);return;}
+                        if(index==46&&player.hasPermission("qualityarmory.civ.manage")) next=Screen.CREATE;
+                    }
+                    break;
+                case CREATE:
+                    if(index==20) {
+                        if(!player.hasPermission("qualityarmory.civ.manage"))return;
+                        List<Player> owners=new ArrayList<>();
+                        for(Player candidate:Bukkit.getOnlinePlayers())
+                            if(candidate.getAddress()!=null)owners.add(candidate);
+                        owners.sort(Comparator.comparing(Player::getName,String.CASE_INSENSITIVE_ORDER));
+                        if(owners.isEmpty())return;
+                        int at=-1;
+                        for(int i=0;i<owners.size();i++)
+                            if(owners.get(i).getUniqueId().equals(v.chosenOwner)){at=i;break;}
+                        UUID selected=owners.get((at+1)%owners.size()).getUniqueId();
+                        later(player,Screen.CREATE,selected,v.radius,0);
+                        return;
+                    }
+                    if(index==24) {
+                        int at=0;
+                        for(int i=0;i<radii.length;i++)if(radii[i]==v.radius)at=i;
+                        later(player,Screen.CREATE,v.chosenOwner,radii[(at+1)%radii.length],0);
+                        return;
+                    }
+                    if(index==31) {
+                        Player ownerPlayer=Bukkit.getPlayer(v.chosenOwner);
+                        if(ownerPlayer==null){player.sendMessage(ChatColor.RED+"Selected owner is offline.");return;}
+                        if(!player.getUniqueId().equals(ownerPlayer.getUniqueId())
+                                && !player.hasPermission("qualityarmory.civ.manage"))return;
+                        FoliaRunnable.runEntityTaskLater(plugin,player,()->{
+                            player.closeInventory();
+                            create(player,ownerPlayer,v.radius);
+                        },1);
+                    }
+                    return;
+                case SHOP:
+                    if(c==null)return;
+                    String purchase=null;
+                    if(index==10)purchase="cannon";
+                    if(index==12)purchase="weapon";
+                    if(index==14)purchase="outpost";
+                    if(index==16)purchase="radius";
+                    if(index==29)purchase="guards";
+                    if(index==33)purchase="repair";
+                    if(purchase!=null) {
+                        upgrade(player,c,purchase);
+                        later(player,Screen.SHOP,v.chosenOwner,v.radius,0);
+                    }
+                    return;
+                case HORNS:
+                    if(c==null||!owner(player,c))return;
+                    String order=index==20?"attack":index==22?"retreat":
+                            index==24?"victory":null;
+                    if(order!=null) {
+                        assignHorn(player,c,order);
+                        later(player,Screen.HORNS,v.chosenOwner,v.radius,0);
+                    }
+                    return;
+                case WAR:
+                    if(index==11)next=Screen.RIVALS;
+                    if(index==15)next=Screen.HORNS;
+                    if(index==29)next=Screen.ALLIES;
+                    break;
+                case FORTS:
+                case DAMAGE:
+                    String id=v.listedForts.get(index);
+                    if(id!=null) {
+                        for(Site site:c.sites)if(site.id.equals(id)) {
+                            World world=Bukkit.getWorld(c.world);
+                            if(world!=null&&world.equals(player.getWorld()))
+                                player.setCompassTarget(new Location(world,site.x,site.y+1,site.z));
+                            player.sendMessage(ChatColor.GOLD+site.name+ChatColor.AQUA+
+                                    " coordinates: "+site.x+", "+(site.y+1)+", "+site.z);
+                            player.sendMessage(ChatColor.GRAY+"Compass points there when you're in the same world.");
+                            break;
+                        }
+                    }
+                    return;
+                case ALLIES:
+                case RIVALS:
+                    if(index==45||index==53) {
+                        page=Math.max(0,v.page+(index==45?-1:1));
+                        if(index==45&&v.page==0)return;
+                        next=v.screen;
+                    } else {
+                        UUID selected=v.listedPlayers.get(index);
+                        if(selected==null||!owner(player,c))return;
+                        Player candidate=Bukkit.getPlayer(selected);
+                        if(candidate!=null) {
+                            if(v.screen==Screen.ALLIES) ally(player,c,candidate.getName());
+                            else target(player,c,candidate.getName());
+                        }
+                        next=v.screen;page=v.page;
+                    }
+                    break;
+                case GUARDS:
+                    if(index==45||index==53) {
+                        page=Math.max(0,v.page+(index==45?-1:1));
+                        next=Screen.GUARDS;
+                    } else {
+                        UUID selected=v.listedPlayers.get(index);
+                        if(selected==null||!owner(player,c))return;
+                        Player candidate=Bukkit.getPlayer(selected);
+                        if(candidate==null)return;
+                        if(event.isShiftClick()&&event.isRightClick())
+                            vehicleGuards.unbindFromMenu(player,c.owner,candidate);
+                        else if(event.isRightClick())
+                            vehicleGuards.bindFromMenu(player,c.owner,candidate,VexbotVehicleController.Role.CANNON);
+                        else
+                            vehicleGuards.bindFromMenu(player,c.owner,candidate,VexbotVehicleController.Role.TANK);
+                        next=Screen.GUARDS;page=v.page;
+                    }
+                    break;
+                case TOOLS:
+                    if(index==20) {
+                        if(player.hasPermission("qualityarmory.tank")) {
+                            FoliaRunnable.runEntityTaskLater(plugin,player,()->
+                                    {player.closeInventory();plugin.getTanks().spawn(player);},1);
+                        } else player.sendMessage(ChatColor.RED+"You cannot deploy tanks.");
+                    }
+                    if(index==24) {
+                        if(player.hasPermission("qualityarmory.cannon")) {
+                            FoliaRunnable.runEntityTaskLater(plugin,player,()->
+                                    {player.closeInventory();siegeCannons.spawnStandalone(player);},1);
+                        } else player.sendMessage(ChatColor.RED+"You cannot deploy cannons.");
+                    }
+                    return;
+            }
+            if(next!=null)later(player,next,v.chosenOwner,v.radius,page);
+        }
+
+        @EventHandler(ignoreCancelled=false)
+        public void dragged(InventoryDragEvent event) {
+            if(event.getView().getTopInventory().getHolder() instanceof View)
+                event.setCancelled(true);
+        }
+    }
+
 }
